@@ -1,14 +1,5 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package Windows;
 
-/**
- *
- * @author David Suazo Palao
- */
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -16,10 +7,12 @@ import java.awt.event.*;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.regex.Pattern;
 
-public class WindowsLoginFrame extends JFrame{
-   private Image backgroundImage;
+/**
+ * @author David Suazo Palao & Ian Suazo Palao
+ */
+public class WindowsLoginFrame extends JFrame {
+    private Image backgroundImage;
     private JPanel cardContainer;
     private CardLayout cardLayout;
 
@@ -35,6 +28,7 @@ public class WindowsLoginFrame extends JFrame{
     private JComboBox<String> cbRegGenero;
     private JPasswordField txtRegPass;
     private JPasswordField txtRegPassConfirm;
+    private JCheckBox chkRegAdmin;
     private JLabel lblRegError;
 
     public WindowsLoginFrame() {
@@ -43,10 +37,8 @@ public class WindowsLoginFrame extends JFrame{
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setLayout(new BorderLayout());
 
-        // 1. Cargar fondo
         cargarFondo();
 
-        // 2. Fondo con overlay acrílico oscuro
         JPanel backgroundPanel = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -65,18 +57,15 @@ public class WindowsLoginFrame extends JFrame{
         backgroundPanel.setLayout(new GridBagLayout());
         add(backgroundPanel, BorderLayout.CENTER);
 
-        // 3. Contenedor de Tarjetas (Login / Registro)
         cardLayout = new CardLayout();
         cardContainer = new JPanel(cardLayout);
         cardContainer.setOpaque(false);
-        cardContainer.setPreferredSize(new Dimension(430, 570));
+        cardContainer.setPreferredSize(new Dimension(440, 600));
 
         cardContainer.add(crearPanelLogin(), "LOGIN");
         cardContainer.add(crearPanelRegistro(), "REGISTRO");
 
         backgroundPanel.add(cardContainer);
-
-        // 4. Barra inferior de bloqueo
         crearBarraBloqueo();
     }
 
@@ -90,7 +79,6 @@ public class WindowsLoginFrame extends JFrame{
         }
     }
 
-    // --- 1. TARJETA DE LOGIN ---
     private JPanel crearPanelLogin() {
         JPanel card = crearTarjetaGlass();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
@@ -108,7 +96,7 @@ public class WindowsLoginFrame extends JFrame{
         txtLoginUser = new JTextField("admin");
         estilizarTextField(txtLoginUser);
 
-        txtLoginPass = new JPasswordField("Admin123!");
+        txtLoginPass = new JPasswordField("Admin2026!");
         JPanel passPanel = crearCampoPasswordConOjo(txtLoginPass);
 
         lblLoginError = new JLabel(" ");
@@ -126,7 +114,6 @@ public class WindowsLoginFrame extends JFrame{
             cardLayout.show(cardContainer, "REGISTRO");
         });
 
-        // Ensamblar
         card.add(Box.createVerticalStrut(10));
         card.add(lblAvatar);
         card.add(Box.createVerticalStrut(10));
@@ -145,7 +132,6 @@ public class WindowsLoginFrame extends JFrame{
         return card;
     }
 
-    // --- 2. TARJETA DE REGISTRO ---
     private JPanel crearPanelRegistro() {
         JPanel card = crearTarjetaGlass();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
@@ -179,8 +165,14 @@ public class WindowsLoginFrame extends JFrame{
         txtRegPassConfirm = new JPasswordField();
         JPanel regPassConfirmPanel = crearCampoPasswordConOjo(txtRegPassConfirm);
 
+        chkRegAdmin = new JCheckBox("Permisos de Administrador");
+        chkRegAdmin.setOpaque(false);
+        chkRegAdmin.setForeground(new Color(200, 220, 245));
+        chkRegAdmin.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        chkRegAdmin.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         lblRegError = new JLabel("<html><center style='color:#ffd2d2; font-size:10px;'>"
-                + "Req: Mín. 7 caract, 1 letra, 1 número y 1 símbolo (!@#$...)</center></html>");
+                + "Req: Mín. 8 caract, 1 mayúscula, 1 número y 1 símbolo</center></html>");
         lblRegError.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JButton btnRegistrar = crearBotonPrimario("Crear Cuenta y Espacio Z:\\");
@@ -190,34 +182,34 @@ public class WindowsLoginFrame extends JFrame{
         estilizarBotonLink(btnVolver);
         btnVolver.addActionListener(e -> cardLayout.show(cardContainer, "LOGIN"));
 
-        // Ensamblar
         card.add(Box.createVerticalStrut(5));
         card.add(lblTitulo);
-        card.add(Box.createVerticalStrut(15));
-        card.add(crearEtiquetaCampo("Usuario:"));
+        card.add(Box.createVerticalStrut(10));
+        card.add(crearEtiquetaCampo("Usuario (username):"));
         card.add(txtRegUser);
-        card.add(Box.createVerticalStrut(8));
+        card.add(Box.createVerticalStrut(6));
         card.add(crearEtiquetaCampo("Nombre Completo:"));
         card.add(txtRegNombre);
-        card.add(Box.createVerticalStrut(8));
+        card.add(Box.createVerticalStrut(6));
         card.add(rowExtra);
-        card.add(Box.createVerticalStrut(8));
+        card.add(Box.createVerticalStrut(6));
         card.add(crearEtiquetaCampo("Contraseña:"));
         card.add(regPassPanel);
-        card.add(Box.createVerticalStrut(8));
+        card.add(Box.createVerticalStrut(6));
         card.add(crearEtiquetaCampo("Confirmar Contraseña:"));
         card.add(regPassConfirmPanel);
-        card.add(Box.createVerticalStrut(8));
+        card.add(Box.createVerticalStrut(6));
+        card.add(chkRegAdmin);
+        card.add(Box.createVerticalStrut(6));
         card.add(lblRegError);
-        card.add(Box.createVerticalStrut(12));
-        card.add(btnRegistrar);
         card.add(Box.createVerticalStrut(10));
+        card.add(btnRegistrar);
+        card.add(Box.createVerticalStrut(8));
         card.add(btnVolver);
 
         return card;
     }
 
-    // --- 3. CAMPO DE CONTRASEÑA CON BOTÓN DE OJO (👁️) ---
     private JPanel crearCampoPasswordConOjo(JPasswordField pf) {
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setMaximumSize(new Dimension(320, 38));
@@ -229,7 +221,6 @@ public class WindowsLoginFrame extends JFrame{
         ));
         wrapper.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // Estilizar campo de contraseña interior
         pf.setBackground(new Color(22, 38, 65));
         pf.setForeground(Color.WHITE);
         pf.setCaretColor(Color.WHITE);
@@ -238,7 +229,6 @@ public class WindowsLoginFrame extends JFrame{
         pf.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         pf.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
 
-        // Botón del ojo
         JButton btnEye = new JButton("👁️");
         btnEye.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
         btnEye.setForeground(Color.WHITE);
@@ -246,7 +236,6 @@ public class WindowsLoginFrame extends JFrame{
         btnEye.setBorderPainted(false);
         btnEye.setFocusPainted(false);
         btnEye.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnEye.setToolTipText("Mostrar/Ocultar contraseña");
 
         char defaultEcho = pf.getEchoChar();
 
@@ -273,15 +262,7 @@ public class WindowsLoginFrame extends JFrame{
         return lbl;
     }
 
-    // --- 4. VALIDACIONES ---
-
-    private boolean validarPasswordSegura(String pass) {
-        if (pass == null || pass.length() < 7) return false;
-        boolean tieneLetra    = Pattern.compile("[a-zA-Z]").matcher(pass).find();
-        boolean tieneNumero   = Pattern.compile("[0-9]").matcher(pass).find();
-        boolean tieneEspecial = Pattern.compile("[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?]").matcher(pass).find();
-        return tieneLetra && tieneNumero && tieneEspecial;
-    }
+    // --- AUTENTICACIÓN Y PERSISTENCIA REAL ---
 
     private void procesarLogin() {
         String user = txtLoginUser.getText().trim();
@@ -292,21 +273,24 @@ public class WindowsLoginFrame extends JFrame{
             return;
         }
 
-        if (!validarPasswordSegura(pass)) {
-            lblLoginError.setText("La contraseña no cumple el formato seguro.");
-            return;
+        try {
+            Usuario u = SistemadeArchivos.autenticar(user, pass);
+            if (u != null) {
+                abrirEscritorio(u);
+            } else {
+                lblLoginError.setText("Usuario o contraseña incorrectos.");
+            }
+        } catch (CorruptoException ex) {
+            lblLoginError.setText("Error: Archivo usuarios.sop corrupto.");
         }
-
-        abrirEscritorio(user);
     }
 
     private void procesarRegistro() {
         String user = txtRegUser.getText().trim();
-        String nombre = txtRegNombre.getText().trim();
         String pass = new String(txtRegPass.getPassword());
         String confirm = new String(txtRegPassConfirm.getPassword());
 
-        if (user.isEmpty() || nombre.isEmpty() || pass.isEmpty()) {
+        if (user.isEmpty() || pass.isEmpty() || confirm.isEmpty()) {
             lblRegError.setText("<html><center style='color:#ff6666;'>Llene todos los campos.</center></html>");
             return;
         }
@@ -316,30 +300,31 @@ public class WindowsLoginFrame extends JFrame{
             return;
         }
 
-        if (!validarPasswordSegura(pass)) {
-            lblRegError.setText("<html><center style='color:#ff6666;'>Mín. 7 letras, 1 número y 1 símbolo.</center></html>");
-            return;
+        try {
+            SistemadeArchivos.registrarUsuario(user, pass, chkRegAdmin.isSelected());
+            JOptionPane.showMessageDialog(this,
+                    "¡Usuario '" + user + "' registrado con éxito!\nSe ha generado el espacio virtual: Z:\\" + user + "\\",
+                    "Registro Exitoso", JOptionPane.INFORMATION_MESSAGE);
+
+            txtLoginUser.setText(user);
+            txtLoginPass.setText("");
+            cardLayout.show(cardContainer, "LOGIN");
+        } catch (PasswordInvalidEsception ex) {
+            lblRegError.setText("<html><center style='color:#ff6666; font-size:10px;'>" + ex.getMessage() + "</center></html>");
+        } catch (UsernameDuplicadoException ex) {
+            lblRegError.setText("<html><center style='color:#ff6666;'>" + ex.getMessage() + "</center></html>");
+        } catch (CorruptoException ex) {
+            lblRegError.setText("<html><center style='color:#ff6666;'>Error en archivo usuarios.sop</center></html>");
         }
-
-        JOptionPane.showMessageDialog(this,
-                "¡Usuario '" + user + "' creado con éxito!\nSe ha generado el espacio virtual: Z:\\" + user + "\\",
-                "Registro Completado", JOptionPane.INFORMATION_MESSAGE);
-
-        txtLoginUser.setText(user);
-        txtLoginPass.setText("");
-        cardLayout.show(cardContainer, "LOGIN");
     }
 
-    private void abrirEscritorio(String username) {
+    private void abrirEscritorio(Usuario usuario) {
         this.dispose();
         SwingUtilities.invokeLater(() -> {
-            MiniWindowsDesktop desktop = new MiniWindowsDesktop();
-            desktop.setTitle("Mini-Windows OS - Sesión: " + username + " (Z:\\" + username + ")");
+            MiniWindowsDesktop desktop = new MiniWindowsDesktop(usuario);
             desktop.setVisible(true);
         });
     }
-
-    // --- ESTILOS DE COMPONENTES ---
 
     private JPanel crearTarjetaGlass() {
         JPanel card = new JPanel() {
@@ -355,7 +340,7 @@ public class WindowsLoginFrame extends JFrame{
             }
         };
         card.setOpaque(false);
-        card.setBorder(new EmptyBorder(25, 35, 25, 35));
+        card.setBorder(new EmptyBorder(20, 30, 20, 30));
         return card;
     }
 
@@ -441,13 +426,5 @@ public class WindowsLoginFrame extends JFrame{
         bottomBar.add(lblTime, BorderLayout.WEST);
         bottomBar.add(btnPower, BorderLayout.EAST);
         add(bottomBar, BorderLayout.SOUTH);
-    }
-
-    public static void main(String[] args) {
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception ignored) {}
-
-        SwingUtilities.invokeLater(() -> new WindowsLoginFrame().setVisible(true));
     }
 }
