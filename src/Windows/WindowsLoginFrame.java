@@ -46,7 +46,7 @@ public class WindowsLoginFrame extends JFrame{
         // 1. Cargar fondo
         cargarFondo();
 
-        // 2. Fondo con overlay acrílico
+        // 2. Fondo con overlay acrílico oscuro
         JPanel backgroundPanel = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -58,7 +58,6 @@ public class WindowsLoginFrame extends JFrame{
                     g2d.setPaint(new GradientPaint(0, 0, new Color(0, 114, 206), getWidth(), getHeight(), new Color(2, 45, 100)));
                     g2d.fillRect(0, 0, getWidth(), getHeight());
                 }
-                // Capa oscura translúcida
                 g.setColor(new Color(10, 25, 45, 175));
                 g.fillRect(0, 0, getWidth(), getHeight());
             }
@@ -70,7 +69,7 @@ public class WindowsLoginFrame extends JFrame{
         cardLayout = new CardLayout();
         cardContainer = new JPanel(cardLayout);
         cardContainer.setOpaque(false);
-        cardContainer.setPreferredSize(new Dimension(420, 560));
+        cardContainer.setPreferredSize(new Dimension(430, 570));
 
         cardContainer.add(crearPanelLogin(), "LOGIN");
         cardContainer.add(crearPanelRegistro(), "REGISTRO");
@@ -110,7 +109,7 @@ public class WindowsLoginFrame extends JFrame{
         estilizarTextField(txtLoginUser);
 
         txtLoginPass = new JPasswordField("Admin123!");
-        estilizarPasswordField(txtLoginPass);
+        JPanel passPanel = crearCampoPasswordConOjo(txtLoginPass);
 
         lblLoginError = new JLabel(" ");
         lblLoginError.setForeground(new Color(255, 120, 120));
@@ -135,7 +134,7 @@ public class WindowsLoginFrame extends JFrame{
         card.add(Box.createVerticalStrut(25));
         card.add(txtLoginUser);
         card.add(Box.createVerticalStrut(15));
-        card.add(txtLoginPass);
+        card.add(passPanel);
         card.add(Box.createVerticalStrut(10));
         card.add(lblLoginError);
         card.add(Box.createVerticalStrut(15));
@@ -158,11 +157,9 @@ public class WindowsLoginFrame extends JFrame{
 
         txtRegUser = new JTextField();
         estilizarTextField(txtRegUser);
-        txtRegUser.setToolTipText("Username");
 
         txtRegNombre = new JTextField();
         estilizarTextField(txtRegNombre);
-        txtRegNombre.setToolTipText("Nombre Completo");
 
         JPanel rowExtra = new JPanel(new GridLayout(1, 2, 10, 0));
         rowExtra.setOpaque(false);
@@ -177,10 +174,10 @@ public class WindowsLoginFrame extends JFrame{
         rowExtra.add(cbRegGenero);
 
         txtRegPass = new JPasswordField();
-        estilizarPasswordField(txtRegPass);
+        JPanel regPassPanel = crearCampoPasswordConOjo(txtRegPass);
 
         txtRegPassConfirm = new JPasswordField();
-        estilizarPasswordField(txtRegPassConfirm);
+        JPanel regPassConfirmPanel = crearCampoPasswordConOjo(txtRegPassConfirm);
 
         lblRegError = new JLabel("<html><center style='color:#ffd2d2; font-size:10px;'>"
                 + "Req: Mín. 7 caract, 1 letra, 1 número y 1 símbolo (!@#$...)</center></html>");
@@ -206,10 +203,10 @@ public class WindowsLoginFrame extends JFrame{
         card.add(rowExtra);
         card.add(Box.createVerticalStrut(8));
         card.add(crearEtiquetaCampo("Contraseña:"));
-        card.add(txtRegPass);
+        card.add(regPassPanel);
         card.add(Box.createVerticalStrut(8));
         card.add(crearEtiquetaCampo("Confirmar Contraseña:"));
-        card.add(txtRegPassConfirm);
+        card.add(regPassConfirmPanel);
         card.add(Box.createVerticalStrut(8));
         card.add(lblRegError);
         card.add(Box.createVerticalStrut(12));
@@ -220,6 +217,54 @@ public class WindowsLoginFrame extends JFrame{
         return card;
     }
 
+    // --- 3. CAMPO DE CONTRASEÑA CON BOTÓN DE OJO (👁️) ---
+    private JPanel crearCampoPasswordConOjo(JPasswordField pf) {
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setMaximumSize(new Dimension(320, 38));
+        wrapper.setPreferredSize(new Dimension(320, 38));
+        wrapper.setBackground(new Color(22, 38, 65));
+        wrapper.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(70, 110, 170), 1, true),
+                BorderFactory.createEmptyBorder(2, 8, 2, 4)
+        ));
+        wrapper.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // Estilizar campo de contraseña interior
+        pf.setBackground(new Color(22, 38, 65));
+        pf.setForeground(Color.WHITE);
+        pf.setCaretColor(Color.WHITE);
+        pf.setSelectionColor(new Color(0, 120, 215));
+        pf.setSelectedTextColor(Color.WHITE);
+        pf.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        pf.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+
+        // Botón del ojo
+        JButton btnEye = new JButton("👁️");
+        btnEye.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
+        btnEye.setForeground(Color.WHITE);
+        btnEye.setContentAreaFilled(false);
+        btnEye.setBorderPainted(false);
+        btnEye.setFocusPainted(false);
+        btnEye.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnEye.setToolTipText("Mostrar/Ocultar contraseña");
+
+        char defaultEcho = pf.getEchoChar();
+
+        btnEye.addActionListener(e -> {
+            if (pf.getEchoChar() == (char) 0) {
+                pf.setEchoChar(defaultEcho);
+                btnEye.setText("👁️");
+            } else {
+                pf.setEchoChar((char) 0);
+                btnEye.setText("🔒");
+            }
+        });
+
+        wrapper.add(pf, BorderLayout.CENTER);
+        wrapper.add(btnEye, BorderLayout.EAST);
+        return wrapper;
+    }
+
     private JLabel crearEtiquetaCampo(String texto) {
         JLabel lbl = new JLabel(texto);
         lbl.setForeground(new Color(200, 220, 245));
@@ -228,7 +273,7 @@ public class WindowsLoginFrame extends JFrame{
         return lbl;
     }
 
-    // --- 3. MÉTODOS DE VALIDACIÓN ---
+    // --- 4. VALIDACIONES ---
 
     private boolean validarPasswordSegura(String pass) {
         if (pass == null || pass.length() < 7) return false;
@@ -294,7 +339,7 @@ public class WindowsLoginFrame extends JFrame{
         });
     }
 
-    // --- COMPONENTES VISUALES CORREGIDOS (SIN BUGS DE COLOR) ---
+    // --- ESTILOS DE COMPONENTES ---
 
     private JPanel crearTarjetaGlass() {
         JPanel card = new JPanel() {
@@ -302,7 +347,7 @@ public class WindowsLoginFrame extends JFrame{
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(15, 30, 55, 230)); // Fondo sólido azul oscuro
+                g2.setColor(new Color(15, 30, 55, 230));
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
                 g2.setColor(new Color(60, 100, 160));
                 g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 20, 20);
@@ -317,8 +362,8 @@ public class WindowsLoginFrame extends JFrame{
     private void estilizarTextField(JTextField tf) {
         tf.setMaximumSize(new Dimension(320, 38));
         tf.setPreferredSize(new Dimension(320, 38));
-        tf.setBackground(new Color(22, 38, 65)); // Azul oscuro opaco
-        tf.setForeground(Color.WHITE);           // Letras blancas nítidas
+        tf.setBackground(new Color(22, 38, 65));
+        tf.setForeground(Color.WHITE);
         tf.setCaretColor(Color.WHITE);
         tf.setSelectionColor(new Color(0, 120, 215));
         tf.setSelectedTextColor(Color.WHITE);
@@ -330,23 +375,6 @@ public class WindowsLoginFrame extends JFrame{
         tf.setAlignmentX(Component.CENTER_ALIGNMENT);
     }
 
-    private void estilizarPasswordField(JPasswordField pf) {
-        pf.setMaximumSize(new Dimension(320, 38));
-        pf.setPreferredSize(new Dimension(320, 38));
-        pf.setBackground(new Color(22, 38, 65));
-        pf.setForeground(Color.WHITE);
-        pf.setCaretColor(Color.WHITE);
-        pf.setSelectionColor(new Color(0, 120, 215));
-        pf.setSelectedTextColor(Color.WHITE);
-        pf.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        pf.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(70, 110, 170), 1, true),
-                BorderFactory.createEmptyBorder(6, 12, 6, 12)
-        ));
-        pf.setAlignmentX(Component.CENTER_ALIGNMENT);
-    }
-
-    // Botón personalizado que garantiza el color azul Windows y texto blanco
     private JButton crearBotonPrimario(String texto) {
         JButton btn = new JButton(texto) {
             @Override
@@ -358,7 +386,7 @@ public class WindowsLoginFrame extends JFrame{
                 } else if (getModel().isRollover()) {
                     g2.setColor(new Color(25, 145, 255));
                 } else {
-                    g2.setColor(new Color(0, 120, 215)); // Azul Windows oficial
+                    g2.setColor(new Color(0, 120, 215));
                 }
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
                 g2.dispose();
@@ -389,7 +417,7 @@ public class WindowsLoginFrame extends JFrame{
 
     private void crearBarraBloqueo() {
         JPanel bottomBar = new JPanel(new BorderLayout());
-        bottomBar.setBackground(new Color(10, 20, 35, 220)); // Barra oscura en la base
+        bottomBar.setBackground(new Color(10, 20, 35, 220));
         bottomBar.setBorder(new EmptyBorder(10, 25, 12, 25));
 
         JLabel lblTime = new JLabel();

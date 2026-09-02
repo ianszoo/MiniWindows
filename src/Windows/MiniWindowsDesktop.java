@@ -25,7 +25,6 @@ public class MiniWindowsDesktop extends JFrame {
     private JPanel startMenu;
     private boolean startMenuVisible = false;
 
-    // Colores basados en el diseño de la imagen
     private final Color TASKBAR_COLOR = new Color(14, 28, 54, 240);
     private final Color START_MENU_BG = new Color(18, 36, 68, 245);
     private final Color SEARCH_BAR_BG = new Color(28, 50, 88, 200);
@@ -38,10 +37,8 @@ public class MiniWindowsDesktop extends JFrame {
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setLayout(new BorderLayout());
 
-        // 1. Cargar fondo
         cargarFondo();
 
-        // 2. Escritorio personalizado
         desktopPane = new JDesktopPane() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -57,7 +54,6 @@ public class MiniWindowsDesktop extends JFrame {
         };
         desktopPane.setLayout(null);
         
-        // Cerrar menú inicio al hacer clic en el escritorio
         desktopPane.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -69,27 +65,53 @@ public class MiniWindowsDesktop extends JFrame {
 
         add(desktopPane, BorderLayout.CENTER);
 
-        // 3. Iconos a la izquierda del escritorio (como en la foto)
         crearIconosEscritorio();
 
-        // 4. Crear el Menú de Inicio flotante (inicialmente oculto)
         crearMenuInicio();
 
-        // 5. Barra de tareas inferior estilo Windows moderno
         crearBarraDeTareas();
     }
 
     private void cargarFondo() {
-        File imgFile = new File("wallpaper.jpg");
-        if (imgFile.exists()) {
-            backgroundImage = new ImageIcon("wallpaper.jpg").getImage();
-        } else {
-            java.net.URL url = getClass().getResource("/Windows/wallpaper.jpg");
-            if (url != null) backgroundImage = new ImageIcon(url).getImage();
+        String[] posiblesRutas = {
+            "imagenes/windows_background.jpg",
+            "imagenes/windows_background.png",
+            "imagenes/windows_background.jpeg",
+            "src/imagenes/windows_background.jpg",
+            "src/imagenes/windows_background.png",
+            "windows_background/windows_background.jpg",
+            "windows_background/windows_background.png",
+            "windows_background.jpg",
+            "windows_background.png"
+        };
+
+        // 1. Intentar cargar desde el sistema de archivos
+        for (String ruta : posiblesRutas) {
+            File f = new File(ruta);
+            if (f.exists()) {
+                backgroundImage = new ImageIcon(f.getAbsolutePath()).getImage();
+                return;
+            }
+        }
+
+        // 2. Intentar cargar desde los recursos internos del JAR/Classpath
+        String[] posiblesRecursos = {
+            "/imagenes/windows_background.jpg",
+            "/imagenes/windows_background.png",
+            "/Windows/windows_background.jpg",
+            "/Windows/windows_background.png",
+            "/windows_background.jpg"
+        };
+
+        for (String recurso : posiblesRecursos) {
+            java.net.URL url = getClass().getResource(recurso);
+            if (url != null) {
+                backgroundImage = new ImageIcon(url).getImage();
+                return;
+            }
         }
     }
 
-    // --- ICONOS VERTICALES A LA IZQUIERDA DEL ESCRITORIO ---
     private void crearIconosEscritorio() {
         int x = 15;
         int y = 15;
@@ -136,7 +158,6 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // --- MENÚ INICIO FLOTANTE DE DOS COLUMNAS ---
     private void crearMenuInicio() {
         startMenu = new JPanel() {
             @Override
@@ -156,11 +177,9 @@ public class MiniWindowsDesktop extends JFrame {
         startMenu.setSize(380, 430);
         startMenu.setVisible(false);
 
-        // Panel Dividido (Izquierda: Apps | Derecha: Accesos)
         JPanel grid = new JPanel(new GridLayout(1, 2, 10, 0));
         grid.setOpaque(false);
 
-        // COLUMNA IZQUIERDA
         JPanel colLeft = new JPanel(new GridLayout(8, 1, 2, 2));
         colLeft.setOpaque(false);
 
@@ -173,7 +192,6 @@ public class MiniWindowsDesktop extends JFrame {
         colLeft.add(crearBotonMenu("📸", "INSTA+", () -> abrirVentana(new InstaPanel(), "INSTA+"), false));
         colLeft.add(crearBotonMenu("⭕", "Apagar", () -> System.exit(0), false));
 
-        // COLUMNA DERECHA (Accesos directos)
         JPanel colRight = new JPanel(new GridLayout(8, 1, 2, 2));
         colRight.setOpaque(false);
 
@@ -223,7 +241,6 @@ public class MiniWindowsDesktop extends JFrame {
     private void toggleStartMenu() {
         startMenuVisible = !startMenuVisible;
         if (startMenuVisible) {
-            // Posicionar justo arriba de la barra de tareas en la esquina inferior izquierda
             startMenu.setLocation(10, desktopPane.getHeight() - startMenu.getHeight() - 10);
             startMenu.setVisible(true);
             startMenu.requestFocus();
@@ -232,14 +249,12 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
-    // --- BARRA DE TAREAS INFERIOR MODERNA ---
     private void crearBarraDeTareas() {
         JPanel taskBar = new JPanel(new BorderLayout(10, 0));
         taskBar.setBackground(TASKBAR_COLOR);
         taskBar.setPreferredSize(new Dimension(getWidth(), 52));
         taskBar.setBorder(new EmptyBorder(4, 10, 4, 15));
 
-        // IZQUIERDA: Botón Windows + Barra de Búsqueda
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         left.setOpaque(false);
 
@@ -253,7 +268,6 @@ public class MiniWindowsDesktop extends JFrame {
         btnStart.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btnStart.addActionListener(e -> toggleStartMenu());
 
-        // Barra de búsqueda redondeada
         JTextField searchBar = new JTextField("  🔍 Buscar...");
         searchBar.setPreferredSize(new Dimension(190, 34));
         searchBar.setBackground(SEARCH_BAR_BG);
@@ -265,7 +279,6 @@ public class MiniWindowsDesktop extends JFrame {
         left.add(btnStart);
         left.add(searchBar);
 
-        // CENTRO: Iconos anclados en la barra
         JPanel center = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 4));
         center.setOpaque(false);
 
@@ -276,7 +289,6 @@ public class MiniWindowsDesktop extends JFrame {
         center.add(crearBotonBarra("▶️", () -> abrirVentana(crearReproductor(), "Reproductor MP3")));
         center.add(crearBotonBarra("📸", () -> abrirVentana(new InstaPanel(), "INSTA+")));
 
-        // DERECHA: Iconos de estado (WiFi, Volumen, Batería) + Reloj a 2 líneas
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 2));
         right.setOpaque(false);
 
@@ -340,7 +352,6 @@ public class MiniWindowsDesktop extends JFrame {
         try { frame.setSelected(true); } catch (Exception ignored) {}
     }
 
-    // --- SUB-VENTANAS ---
 
     private JPanel crearExplorador() {
         JPanel p = new JPanel(new BorderLayout());
