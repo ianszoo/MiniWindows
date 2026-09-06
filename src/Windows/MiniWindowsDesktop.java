@@ -126,7 +126,6 @@ public class MiniWindowsDesktop extends JFrame {
                 if (isHovered[0]) {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    // Fondo translúcido con bordes redondeados estilo Windows
                     g2.setColor(new Color(255, 255, 255, 45));
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
                     g2.setColor(new Color(255, 255, 255, 90));
@@ -137,12 +136,12 @@ public class MiniWindowsDesktop extends JFrame {
             }
         };
 
-        p.setOpaque(false); // Siempre false para evitar el efecto fantasma
+        p.setOpaque(false);
         p.setBounds(x, y, 90, 85);
         p.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
         ImageIcon icono = cargarIcono(nombreIcono, 44, 44);
-        JLabel lblIcon = new JLabel(icono != null ? icono : new JLabel("📁").getIcon(), SwingConstants.CENTER);
+        JLabel lblIcon = new JLabel(icono, SwingConstants.CENTER);
 
         JLabel lbl = new JLabel("<html><center style='text-shadow: 1px 1px 2px #000;'>" + texto.replace("\n", "<br>") + "</center></html>", SwingConstants.CENTER);
         lbl.setForeground(Color.WHITE);
@@ -159,14 +158,18 @@ public class MiniWindowsDesktop extends JFrame {
             public void mouseEntered(MouseEvent e) {
                 isHovered[0] = true;
                 p.repaint();
-                if (p.getParent() != null) p.getParent().repaint(p.getBounds());
+                if (p.getParent() != null) {
+                    p.getParent().repaint(p.getX(), p.getY(), p.getWidth(), p.getHeight());
+                }
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
                 isHovered[0] = false;
                 p.repaint();
-                if (p.getParent() != null) p.getParent().repaint(p.getBounds());
+                if (p.getParent() != null) {
+                    p.getParent().repaint(p.getX(), p.getY(), p.getWidth(), p.getHeight());
+                }
             }
         });
 
