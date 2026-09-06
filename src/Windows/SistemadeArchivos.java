@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package Windows;
 
 import java.io.File;
@@ -13,53 +8,59 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
 /**
- *
  * @author Ian Suazo Palao
  */
 public class SistemadeArchivos {
-    public static final String RUTA_RAIZ_SIMULADA="./Disco_Z"; 
-    public static final String ARCHIVO_USUARIOS=RUTA_RAIZ_SIMULADA+"/usuarios.sop";
+    public static final String RUTA_RAIZ_SIMULADA = "./Disco_Z"; 
+    public static final String ARCHIVO_USUARIOS = RUTA_RAIZ_SIMULADA + "/usuarios.sop";
     
-    public static void inicializarSistema(){
+    public static void inicializarSistema() {
         File raiz = new File(RUTA_RAIZ_SIMULADA);
         if (!raiz.exists()) {
             raiz.mkdirs();
         }
 
-        // Crear usuario admin por defecto si no existe el archivo binario
+        // Crear automáticamente el usuario Admin de prueba si no existe
         File fileUsuarios = new File(ARCHIVO_USUARIOS);
         if (!fileUsuarios.exists()) {
             Lista<Usuario> listaInicial = new Lista<>();
-            Usuario admin=new Usuario("admin", "Admin2026!", true);
-            listaInicial.agregar(admin);
+            Usuario adminTest = new Usuario("admin", "Admin2026!", true);
+            listaInicial.agregar(adminTest);
             guardarUsuarios(listaInicial);
             crearEstructuraUsuario("admin");
         }
     }
     
-    public static synchronized void guardarUsuarios(Lista<Usuario> usuarios){
-        try(
-            ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(ARCHIVO_USUARIOS))){
+    public static synchronized void guardarUsuarios(Lista<Usuario> usuarios) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(ARCHIVO_USUARIOS))) {
             oos.writeObject(usuarios);
-        } 
-        catch(IOException e){
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
     
-  
-    public static synchronized Lista<Usuario> cargarUsuarios() throws CorruptoException{
+    @SuppressWarnings("unchecked")
+    public static synchronized Lista<Usuario> cargarUsuarios() throws CorruptoException {
         File file = new File(ARCHIVO_USUARIOS);
         if (!file.exists()) return new Lista<>();
 
-        try (
-            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))){
-            return ((Lista<Usuario>)ois.readObject());
-        } 
-        catch (Exception e){
-            throw new CorruptoException(
-                    "Error al leer el archivo binario de usuarios: usuarios.sop");
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
+            return (Lista<Usuario>) ois.readObject();
+        } catch (Exception e) {
+            throw new CorruptoException("Error al leer el archivo binario de usuarios: usuarios.sop");
         }
+    }
+    
+    public static boolean hayAdmin() {
+        try {
+            Lista<Usuario> list = cargarUsuarios();
+            Nodo<Usuario> actual = list.getHead();
+            while (actual != null) {
+                if (actual.getDato().isEsAdmin()) return true;
+                actual = actual.getSiguiente();
+            }
+        } catch (Exception ignored) {}
+        return false;
     }
     
     public static void crearEstructuraUsuario(String username) {
@@ -73,32 +74,37 @@ public class SistemadeArchivos {
     }
 
     public static Usuario autenticar(String username, String password) throws CorruptoException {
-        Lista<Usuario> usuarios=cargarUsuarios();
-        Nodo<Usuario> actual=usuarios.getHead();
-        while (actual!=null){
-            Usuario u =actual.getDato();
-            if (u.getUsername().equalsIgnoreCase(username) && u.getPass().equals(password)){
+        Lista<Usuario> usuarios = cargarUsuarios();
+        Nodo<Usuario> actual = usuarios.getHead();
+        while (actual != null) {
+            Usuario u = actual.getDato();
+            if (u.getUsername().equalsIgnoreCase(username) && u.getPass().equals(password)) {
                 return u;
             }
-            actual=actual.getSiguiente();
+            actual = actual.getSiguiente();
         }
         return null;
     }
     
-    public static void registrarUsuario(String username, String password, boolean esAdmin) throws UsernameDuplicadoException,PasswordInvalidEsception,CorruptoException {
+    public static void registrarUsuario(String username, String password, boolean esAdmin) 
+            throws UsernameDuplicadoException, PasswordInvalidEsception, CorruptoException {
         
         Password.validar(password);
         Lista<Usuario> usuarios = cargarUsuarios();
         
+        if (!hayAdmin() && !esAdmin) {
+            throw new PasswordInvalidEsception("El primer usuario del sistema debe ser creado como Administrador.");
+        }
+        
         Nodo<Usuario> actual = usuarios.getHead();
-        while (actual != null){
-            if (actual.getDato().getUsername().equalsIgnoreCase(username)){
-                throw new UsernameDuplicadoException("El usuario '"+username+"' ya existe en el sistema.");
+        while (actual != null) {
+            if (actual.getDato().getUsername().equalsIgnoreCase(username)) {
+                throw new UsernameDuplicadoException("El usuario '" + username + "' ya existe en el sistema.");
             }
             actual = actual.getSiguiente();
         }
 
-        Usuario nuevo = new Usuario(username,password,esAdmin);
+        Usuario nuevo = new Usuario(username, password, esAdmin);
         usuarios.agregar(nuevo);
         guardarUsuarios(usuarios);
         crearEstructuraUsuario(username);

@@ -16,7 +16,7 @@ public class WindowsLoginFrame extends JFrame {
     private JPanel cardContainer;
     private CardLayout cardLayout;
 
-    // Campos de Login
+    // Campos de Login (Prellenados para pruebas rápidas)
     private JTextField txtLoginUser;
     private JPasswordField txtLoginPass;
     private JLabel lblLoginError;
@@ -39,7 +39,8 @@ public class WindowsLoginFrame extends JFrame {
 
         cargarFondo();
 
-        JPanel backgroundPanel = new JPanel() {
+        // Panel Principal con el Fondo de Pantalla completo
+        JPanel backgroundPanel = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
@@ -47,35 +48,47 @@ public class WindowsLoginFrame extends JFrame {
                     g.drawImage(backgroundImage, 0, 0, getWidth(), getHeight(), this);
                 } else {
                     Graphics2D g2d = (Graphics2D) g;
-                    g2d.setPaint(new GradientPaint(0, 0, new Color(0, 114, 206), getWidth(), getHeight(), new Color(2, 45, 100)));
+                    g2d.setPaint(new GradientPaint(0, 0, new Color(15, 32, 67), getWidth(), getHeight(), new Color(2, 10, 25)));
                     g2d.fillRect(0, 0, getWidth(), getHeight());
                 }
-                g.setColor(new Color(10, 25, 45, 175));
+                // Capa acrílica oscura uniforme en toda la pantalla
+                g.setColor(new Color(10, 20, 35, 150));
                 g.fillRect(0, 0, getWidth(), getHeight());
             }
         };
-        backgroundPanel.setLayout(new GridBagLayout());
-        add(backgroundPanel, BorderLayout.CENTER);
+
+        // Contenedor central para centrar la tarjeta de login
+        JPanel centerWrapper = new JPanel(new GridBagLayout());
+        centerWrapper.setOpaque(false);
 
         cardLayout = new CardLayout();
         cardContainer = new JPanel(cardLayout);
         cardContainer.setOpaque(false);
-        cardContainer.setPreferredSize(new Dimension(440, 600));
+        cardContainer.setPreferredSize(new Dimension(440, 580));
 
         cardContainer.add(crearPanelLogin(), "LOGIN");
         cardContainer.add(crearPanelRegistro(), "REGISTRO");
 
-        backgroundPanel.add(cardContainer);
-        crearBarraBloqueo();
+        centerWrapper.add(cardContainer);
+        backgroundPanel.add(centerWrapper, BorderLayout.CENTER);
+
+        // Barra inferior transparente dentro del panel de fondo
+        backgroundPanel.add(crearBarraBloqueo(), BorderLayout.SOUTH);
+
+        add(backgroundPanel, BorderLayout.CENTER);
     }
 
     private void cargarFondo() {
-        File imgFile = new File("wallpaper.jpg");
-        if (imgFile.exists()) {
-            backgroundImage = new ImageIcon("wallpaper.jpg").getImage();
-        } else {
-            java.net.URL url = getClass().getResource("/Windows/wallpaper.jpg");
-            if (url != null) backgroundImage = new ImageIcon(url).getImage();
+        String[] posiblesRutas = {
+            "imagenes/windows_background.jpg", "imagenes/windows_background.png",
+            "src/imagenes/windows_background.jpg", "windows_background.jpg", "wallpaper.jpg"
+        };
+        for (String ruta : posiblesRutas) {
+            File f = new File(ruta);
+            if (f.exists()) {
+                backgroundImage = new ImageIcon(f.getAbsolutePath()).getImage();
+                return;
+            }
         }
     }
 
@@ -84,7 +97,7 @@ public class WindowsLoginFrame extends JFrame {
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
 
         JLabel lblAvatar = new JLabel("👤", SwingConstants.CENTER);
-        lblAvatar.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 64));
+        lblAvatar.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 56));
         lblAvatar.setForeground(Color.WHITE);
         lblAvatar.setAlignmentX(Component.CENTER_ALIGNMENT);
 
@@ -93,6 +106,7 @@ public class WindowsLoginFrame extends JFrame {
         lblTitulo.setForeground(Color.WHITE);
         lblTitulo.setAlignmentX(Component.CENTER_ALIGNMENT);
 
+        // USUARIO Y CONTRASEÑA DE PRUEBA PRELLENADOS
         txtLoginUser = new JTextField("admin");
         estilizarTextField(txtLoginUser);
 
@@ -104,7 +118,7 @@ public class WindowsLoginFrame extends JFrame {
         lblLoginError.setFont(new Font("Segoe UI", Font.BOLD, 12));
         lblLoginError.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JButton btnLogin = crearBotonPrimario("Ingresar  ➔");
+        JButton btnLogin = crearBotonPrimario("Ingresar ➔");
         btnLogin.addActionListener(e -> procesarLogin());
 
         JButton btnIrRegistro = new JButton("¿No tienes cuenta? Crear usuario");
@@ -118,15 +132,17 @@ public class WindowsLoginFrame extends JFrame {
         card.add(lblAvatar);
         card.add(Box.createVerticalStrut(10));
         card.add(lblTitulo);
-        card.add(Box.createVerticalStrut(25));
+        card.add(Box.createVerticalStrut(20));
+        card.add(crearEtiquetaCampo("Usuario:"));
         card.add(txtLoginUser);
-        card.add(Box.createVerticalStrut(15));
-        card.add(passPanel);
         card.add(Box.createVerticalStrut(10));
+        card.add(crearEtiquetaCampo("Contraseña:"));
+        card.add(passPanel);
+        card.add(Box.createVerticalStrut(8));
         card.add(lblLoginError);
-        card.add(Box.createVerticalStrut(15));
+        card.add(Box.createVerticalStrut(12));
         card.add(btnLogin);
-        card.add(Box.createVerticalStrut(15));
+        card.add(Box.createVerticalStrut(12));
         card.add(btnIrRegistro);
 
         return card;
@@ -136,7 +152,7 @@ public class WindowsLoginFrame extends JFrame {
         JPanel card = crearTarjetaGlass();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
 
-        JLabel lblTitulo = new JLabel("Crear Nuevo Usuario");
+        JLabel lblTitulo = new JLabel("Crear Cuenta");
         lblTitulo.setFont(new Font("Segoe UI", Font.BOLD, 20));
         lblTitulo.setForeground(Color.WHITE);
         lblTitulo.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -224,12 +240,10 @@ public class WindowsLoginFrame extends JFrame {
         pf.setBackground(new Color(22, 38, 65));
         pf.setForeground(Color.WHITE);
         pf.setCaretColor(Color.WHITE);
-        pf.setSelectionColor(new Color(0, 120, 215));
-        pf.setSelectedTextColor(Color.WHITE);
         pf.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         pf.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
 
-        JButton btnEye = new JButton("👁️");
+        JButton btnEye = new JButton("👁");
         btnEye.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
         btnEye.setForeground(Color.WHITE);
         btnEye.setContentAreaFilled(false);
@@ -238,11 +252,10 @@ public class WindowsLoginFrame extends JFrame {
         btnEye.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
         char defaultEcho = pf.getEchoChar();
-
         btnEye.addActionListener(e -> {
             if (pf.getEchoChar() == (char) 0) {
                 pf.setEchoChar(defaultEcho);
-                btnEye.setText("👁️");
+                btnEye.setText("👁");
             } else {
                 pf.setEchoChar((char) 0);
                 btnEye.setText("🔒");
@@ -261,8 +274,6 @@ public class WindowsLoginFrame extends JFrame {
         lbl.setAlignmentX(Component.CENTER_ALIGNMENT);
         return lbl;
     }
-
-    // --- AUTENTICACIÓN Y PERSISTENCIA REAL ---
 
     private void procesarLogin() {
         String user = txtLoginUser.getText().trim();
@@ -307,14 +318,10 @@ public class WindowsLoginFrame extends JFrame {
                     "Registro Exitoso", JOptionPane.INFORMATION_MESSAGE);
 
             txtLoginUser.setText(user);
-            txtLoginPass.setText("");
+            txtLoginPass.setText(pass);
             cardLayout.show(cardContainer, "LOGIN");
-        } catch (PasswordInvalidEsception ex) {
+        } catch (PasswordInvalidEsception | UsernameDuplicadoException | CorruptoException ex) {
             lblRegError.setText("<html><center style='color:#ff6666; font-size:10px;'>" + ex.getMessage() + "</center></html>");
-        } catch (UsernameDuplicadoException ex) {
-            lblRegError.setText("<html><center style='color:#ff6666;'>" + ex.getMessage() + "</center></html>");
-        } catch (CorruptoException ex) {
-            lblRegError.setText("<html><center style='color:#ff6666;'>Error en archivo usuarios.sop</center></html>");
         }
     }
 
@@ -332,9 +339,9 @@ public class WindowsLoginFrame extends JFrame {
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(15, 30, 55, 230));
+                g2.setColor(new Color(15, 30, 55, 235));
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
-                g2.setColor(new Color(60, 100, 160));
+                g2.setColor(new Color(70, 110, 180));
                 g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 20, 20);
                 g2.dispose();
             }
@@ -350,8 +357,6 @@ public class WindowsLoginFrame extends JFrame {
         tf.setBackground(new Color(22, 38, 65));
         tf.setForeground(Color.WHITE);
         tf.setCaretColor(Color.WHITE);
-        tf.setSelectionColor(new Color(0, 120, 215));
-        tf.setSelectedTextColor(Color.WHITE);
         tf.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         tf.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(70, 110, 170), 1, true),
@@ -400,10 +405,11 @@ public class WindowsLoginFrame extends JFrame {
         btn.setAlignmentX(Component.CENTER_ALIGNMENT);
     }
 
-    private void crearBarraBloqueo() {
+    // Barra 100% transparente sin fondo blanco
+    private JPanel crearBarraBloqueo() {
         JPanel bottomBar = new JPanel(new BorderLayout());
-        bottomBar.setBackground(new Color(10, 20, 35, 220));
-        bottomBar.setBorder(new EmptyBorder(10, 25, 12, 25));
+        bottomBar.setOpaque(false); // Transparente
+        bottomBar.setBorder(new EmptyBorder(12, 30, 18, 30));
 
         JLabel lblTime = new JLabel();
         lblTime.setForeground(Color.WHITE);
@@ -413,18 +419,31 @@ public class WindowsLoginFrame extends JFrame {
             lblTime.setText(new SimpleDateFormat("hh:mm a   |   EEEE, d 'de' MMMM").format(new Date()));
         });
         timer.start();
+        lblTime.setText(new SimpleDateFormat("hh:mm a   |   EEEE, d 'de' MMMM").format(new Date()));
 
-        JButton btnPower = new JButton("⏻ Apagar");
-        btnPower.setForeground(new Color(255, 100, 100));
-        btnPower.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        JButton btnPower = new JButton("⏻ Apagar") {
+            @Override
+            protected void paintComponent(Graphics g) {
+                if (getModel().isRollover()) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setColor(new Color(255, 255, 255, 30));
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                    g2.dispose();
+                }
+                super.paintComponent(g);
+            }
+        };
+        btnPower.setForeground(new Color(255, 120, 120));
+        btnPower.setFont(new Font("Segoe UI", Font.BOLD, 13));
         btnPower.setContentAreaFilled(false);
         btnPower.setBorderPainted(false);
         btnPower.setFocusPainted(false);
+        btnPower.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
         btnPower.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btnPower.addActionListener(e -> System.exit(0));
 
         bottomBar.add(lblTime, BorderLayout.WEST);
         bottomBar.add(btnPower, BorderLayout.EAST);
-        add(bottomBar, BorderLayout.SOUTH);
+        return bottomBar;
     }
 }
