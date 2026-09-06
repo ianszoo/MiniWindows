@@ -1,18 +1,17 @@
 package Windows;
 
-import javax.swing.*;
-import javax.swing.border.EmptyBorder;
-import javax.swing.text.*;
-import javax.swing.tree.*;
+import Insta.InstaPanel;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Date;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.text.*;
+import javax.swing.tree.*;
 
 /**
  * @author David Suazo Palao & Ian Suazo Palao
@@ -26,7 +25,6 @@ public class MiniWindowsDesktop extends JFrame {
 
     private final Color TASKBAR_COLOR = new Color(14, 28, 54, 240);
     private final Color START_MENU_BG = new Color(18, 36, 68, 245);
-    private final Color SEARCH_BAR_BG = new Color(28, 50, 88, 200);
     private final Color HOVER_COLOR    = new Color(255, 255, 255, 35);
     private final Color TEXT_WHITE     = new Color(240, 240, 245);
 
@@ -53,7 +51,7 @@ public class MiniWindowsDesktop extends JFrame {
             }
         };
         desktopPane.setLayout(null);
-        
+
         desktopPane.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -70,66 +68,114 @@ public class MiniWindowsDesktop extends JFrame {
         crearBarraDeTareas();
     }
 
-    private void cargarFondo() {
-        String[] posiblesRutas = {
-            "imagenes/windows_background.jpg", "imagenes/windows_background.png",
-            "src/imagenes/windows_background.jpg", "windows_background.jpg", "wallpaper.jpg"
-        };
-        for (String ruta : posiblesRutas) {
-            File f = new File(ruta);
-            if (f.exists()) {
-                backgroundImage = new ImageIcon(f.getAbsolutePath()).getImage();
-                return;
+    // Método utilitario para cargar iconos redimensionados con soporte de fallback
+    public static ImageIcon cargarIcono(String nombreBase, int ancho, int alto) {
+        String[] extensiones = {".png", ".jpg", ".jpeg"};
+        String[] carpetas = {"/Imagenes/", "src/Imagenes/", "Imagenes/"};
+
+        for (String cap : carpetas) {
+            for (String ext : extensiones) {
+                String ruta = cap + nombreBase + ext;
+                if (cap.startsWith("/")) {
+                    java.net.URL url = MiniWindowsDesktop.class.getResource(ruta);
+                    if (url != null) {
+                        Image img = new ImageIcon(url).getImage().getScaledInstance(ancho, alto, Image.SCALE_SMOOTH);
+                        return new ImageIcon(img);
+                    }
+                } else {
+                    File f = new File(ruta);
+                    if (f.exists()) {
+                        Image img = new ImageIcon(f.getAbsolutePath()).getImage().getScaledInstance(ancho, alto, Image.SCALE_SMOOTH);
+                        return new ImageIcon(img);
+                    }
+                }
             }
+        }
+        return null;
+    }
+
+    private void cargarFondo() {
+        ImageIcon bg = cargarIcono("windows_background", 1920, 1080);
+        if (bg != null) {
+            backgroundImage = bg.getImage();
         }
     }
 
+    // ==========================================
+    // ICONOS DEL ESCRITORIO
+    // ==========================================
     private void crearIconosEscritorio() {
-        int x = 15;
-        int y = 15;
-        int gap = 82;
+        int x = 20;
+        int y = 20;
+        int gap = 95; // Separación suficiente para evitar cualquier solapamiento
 
-        desktopPane.add(crearIconoEscritorio("🖥️", "Este equipo", x, y, () -> abrirVentana(crearExploradorReal(), "Este equipo (Z:\\)")));
-        desktopPane.add(crearIconoEscritorio("📁", "Documentos", x, y += gap, () -> abrirVentana(crearExploradorReal(), "Z:\\" + usuarioActual.getUsername() + "\\Mis Documentos")));
-        desktopPane.add(crearIconoEscritorio("🗑️", "Papelera", x, y += gap, () -> JOptionPane.showMessageDialog(this, "La papelera de reciclaje está vacía.")));
-        desktopPane.add(crearIconoEscritorio("📸", "INSTA+", x, y += gap, () -> abrirVentana(new InstaPanel(), "INSTA+")));
-        desktopPane.add(crearIconoEscritorio("❓", "Ayuda", x, y += gap, () -> JOptionPane.showMessageDialog(this, "Mini-Windows OS v2.0\nProgramación II - UNITEC")));
+        desktopPane.add(crearIconoEscritorio("archivos_icono", "Este equipo", x, y, () -> abrirVentana(crearExploradorReal(), "Este equipo (Z:\\)")));
+        desktopPane.add(crearIconoEscritorio("archivos_icono", "Mis Documentos", x, y += gap, () -> abrirVentana(crearExploradorReal(), "Z:\\" + usuarioActual.getUsername() + "\\Mis Documentos")));
+        desktopPane.add(crearIconoEscritorio("word_icon", "Editor Word", x, y += gap, () -> abrirVentana(crearEditorReal(), "Editor con Formato")));
+        desktopPane.add(crearIconoEscritorio("imagenes_icono", "Visor Fotos", x, y += gap, () -> abrirVentana(crearVisorReal(), "Visor de Imágenes")));
+        desktopPane.add(crearIconoEscritorio("musica_icono", "Reproductor", x, y += gap, () -> abrirVentana(crearReproductorReal(), "Reproductor MP3")));
+        desktopPane.add(crearIconoEscritorio("instagram_icon", "INSTA+", x, y += gap, () -> abrirVentana(new InstaPanel(usuarioActual), "INSTA+")));
     }
 
-    private JPanel crearIconoEscritorio(String emoji, String texto, int x, int y, Runnable accion) {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setOpaque(false);
-        p.setBounds(x, y, 85, 75);
+   private JPanel crearIconoEscritorio(String nombreIcono, String texto, int x, int y, Runnable accion) {
+        final boolean[] isHovered = {false};
+
+        JPanel p = new JPanel(new BorderLayout(0, 4)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                if (isHovered[0]) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    // Fondo translúcido con bordes redondeados estilo Windows
+                    g2.setColor(new Color(255, 255, 255, 45));
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                    g2.setColor(new Color(255, 255, 255, 90));
+                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+                    g2.dispose();
+                }
+                super.paintComponent(g);
+            }
+        };
+
+        p.setOpaque(false); // Siempre false para evitar el efecto fantasma
+        p.setBounds(x, y, 90, 85);
         p.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-        JLabel icon = new JLabel(emoji, SwingConstants.CENTER);
-        icon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 28));
+        ImageIcon icono = cargarIcono(nombreIcono, 44, 44);
+        JLabel lblIcon = new JLabel(icono != null ? icono : new JLabel("📁").getIcon(), SwingConstants.CENTER);
 
-        JLabel lbl = new JLabel("<html><center>" + texto.replace("\n", "<br>") + "</center></html>", SwingConstants.CENTER);
+        JLabel lbl = new JLabel("<html><center style='text-shadow: 1px 1px 2px #000;'>" + texto.replace("\n", "<br>") + "</center></html>", SwingConstants.CENTER);
         lbl.setForeground(Color.WHITE);
         lbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
 
-        p.add(icon, BorderLayout.CENTER);
+        p.add(lblIcon, BorderLayout.CENTER);
         p.add(lbl, BorderLayout.SOUTH);
 
         p.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) { accion.run(); }
+
             @Override
             public void mouseEntered(MouseEvent e) {
-                p.setOpaque(true);
-                p.setBackground(new Color(255, 255, 255, 45));
+                isHovered[0] = true;
                 p.repaint();
+                if (p.getParent() != null) p.getParent().repaint(p.getBounds());
             }
+
             @Override
             public void mouseExited(MouseEvent e) {
-                p.setOpaque(false);
+                isHovered[0] = false;
                 p.repaint();
+                if (p.getParent() != null) p.getParent().repaint(p.getBounds());
             }
         });
+
         return p;
     }
 
+    // ==========================================
+    // MENÚ INICIO
+    // ==========================================
     private void crearMenuInicio() {
         startMenu = new JPanel() {
             @Override
@@ -146,7 +192,7 @@ public class MiniWindowsDesktop extends JFrame {
         startMenu.setOpaque(false);
         startMenu.setLayout(new BorderLayout(10, 10));
         startMenu.setBorder(new EmptyBorder(15, 15, 15, 15));
-        startMenu.setSize(380, 430);
+        startMenu.setSize(390, 440);
         startMenu.setVisible(false);
 
         JPanel grid = new JPanel(new GridLayout(1, 2, 10, 0));
@@ -155,14 +201,14 @@ public class MiniWindowsDesktop extends JFrame {
         JPanel colLeft = new JPanel(new GridLayout(8, 1, 2, 2));
         colLeft.setOpaque(false);
 
-        colLeft.add(crearBotonMenu("👤", usuarioActual.getUsername() + (usuarioActual.isEsAdmin() ? " (Admin)" : ""), null, true));
-        colLeft.add(crearBotonMenu("📁", "Explorador", () -> abrirVentana(crearExploradorReal(), "Explorador de Archivos"), false));
-        colLeft.add(crearBotonMenu("📝", "Editor TXT", () -> abrirVentana(crearEditorReal(), "Editor con Formato"), false));
-        colLeft.add(crearBotonMenu("🖼️", "Visor Fotos", () -> abrirVentana(crearVisorReal(), "Visor de Imágenes"), false));
-        colLeft.add(crearBotonMenu("💻", "Consola CMD", () -> abrirVentana(crearCmdReal(), "CMD"), false));
-        colLeft.add(crearBotonMenu("🎵", "Reproductor", () -> abrirVentana(crearReproductorReal(), "Reproductor MP3"), false));
-        colLeft.add(crearBotonMenu("📸", "INSTA+", () -> abrirVentana(new InstaPanel(), "INSTA+"), false));
-        colLeft.add(crearBotonMenu("🚪", "Cerrar Sesión", () -> cerrarSesion(), false));
+        colLeft.add(crearBotonMenu(null, usuarioActual.getUsername() + (usuarioActual.isEsAdmin() ? " (Admin)" : ""), null, true));
+        colLeft.add(crearBotonMenu("archivos_icono", "Explorador", () -> abrirVentana(crearExploradorReal(), "Explorador de Archivos"), false));
+        colLeft.add(crearBotonMenu("word_icon", "Editor Word", () -> abrirVentana(crearEditorReal(), "Editor con Formato"), false));
+        colLeft.add(crearBotonMenu("imagenes_icono", "Visor Fotos", () -> abrirVentana(crearVisorReal(), "Visor de Imágenes"), false));
+        colLeft.add(crearBotonMenu(null, "Consola CMD", () -> abrirVentana(crearCmdReal(), "CMD"), false));
+        colLeft.add(crearBotonMenu("musica_icono", "Reproductor", () -> abrirVentana(crearReproductorReal(), "Reproductor MP3"), false));
+        colLeft.add(crearBotonMenu("instagram_icon", "INSTA+", () -> abrirVentana(new InstaPanel(usuarioActual), "INSTA+"), false));
+        colLeft.add(crearBotonMenu(null, "Cerrar Sesión", () -> cerrarSesion(), false));
 
         JPanel colRight = new JPanel(new GridLayout(8, 1, 2, 2));
         colRight.setOpaque(false);
@@ -172,9 +218,9 @@ public class MiniWindowsDesktop extends JFrame {
         lblAccesos.setFont(new Font("Segoe UI", Font.BOLD, 12));
         colRight.add(lblAccesos);
 
-        colRight.add(crearBotonMenu("📁", "Documentos", () -> abrirVentana(crearExploradorReal(), "Mis Documentos"), false));
-        colRight.add(crearBotonMenu("🖼️", "Imágenes", () -> abrirVentana(crearVisorReal(), "Mis Imágenes"), false));
-        colRight.add(crearBotonMenu("🎵", "Música", () -> abrirVentana(crearReproductorReal(), "Música"), false));
+        colRight.add(crearBotonMenu("archivos_icono", "Documentos", () -> abrirVentana(crearExploradorReal(), "Mis Documentos"), false));
+        colRight.add(crearBotonMenu("imagenes_icono", "Imágenes", () -> abrirVentana(crearVisorReal(), "Mis Imágenes"), false));
+        colRight.add(crearBotonMenu("musica_icono", "Música", () -> abrirVentana(crearReproductorReal(), "Música"), false));
 
         grid.add(colLeft);
         grid.add(colRight);
@@ -183,11 +229,16 @@ public class MiniWindowsDesktop extends JFrame {
         desktopPane.add(startMenu, JLayeredPane.POPUP_LAYER);
     }
 
-    private JButton crearBotonMenu(String emoji, String texto, Runnable accion, boolean isHeader) {
-        JButton btn = new JButton(emoji + "  " + texto);
+    private JButton crearBotonMenu(String nombreIcono, String texto, Runnable accion, boolean isHeader) {
+        JButton btn = new JButton(texto);
+        if (nombreIcono != null) {
+            ImageIcon icon = cargarIcono(nombreIcono, 22, 22);
+            if (icon != null) btn.setIcon(icon);
+        }
         btn.setFont(new Font("Segoe UI", isHeader ? Font.BOLD : Font.PLAIN, 12));
         btn.setForeground(TEXT_WHITE);
         btn.setHorizontalAlignment(SwingConstants.LEFT);
+        btn.setIconTextGap(10);
         btn.setOpaque(false);
         btn.setContentAreaFilled(false);
         btn.setBorderPainted(false);
@@ -220,6 +271,9 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
+    // ==========================================
+    // BARRA DE TAREAS (TASKBAR)
+    // ==========================================
     private void crearBarraDeTareas() {
         JPanel taskBar = new JPanel(new BorderLayout(10, 0));
         taskBar.setBackground(TASKBAR_COLOR);
@@ -233,23 +287,21 @@ public class MiniWindowsDesktop extends JFrame {
         btnStart.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 18));
         btnStart.setBackground(new Color(0, 120, 215));
         btnStart.setForeground(Color.WHITE);
-        btnStart.setPreferredSize(new Dimension(42, 36));
+        btnStart.setPreferredSize(new Dimension(42, 38));
         btnStart.setFocusPainted(false);
         btnStart.setBorder(BorderFactory.createEmptyBorder());
         btnStart.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btnStart.addActionListener(e -> toggleStartMenu());
-
         left.add(btnStart);
 
         JPanel center = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 4));
         center.setOpaque(false);
 
-        center.add(crearBotonBarra("📁", () -> abrirVentana(crearExploradorReal(), "Explorador de Archivos")));
-        center.add(crearBotonBarra("📝", () -> abrirVentana(crearEditorReal(), "Editor de Texto")));
-        center.add(crearBotonBarra("🖼️", () -> abrirVentana(crearVisorReal(), "Visor de Fotos")));
-        center.add(crearBotonBarra("💻", () -> abrirVentana(crearCmdReal(), "Consola CMD")));
-        center.add(crearBotonBarra("▶️", () -> abrirVentana(crearReproductorReal(), "Reproductor MP3")));
-        center.add(crearBotonBarra("📸", () -> abrirVentana(new InstaPanel(), "INSTA+")));
+        center.add(crearBotonBarra("archivos_icono", () -> abrirVentana(crearExploradorReal(), "Explorador de Archivos")));
+        center.add(crearBotonBarra("word_icon", () -> abrirVentana(crearEditorReal(), "Editor de Texto")));
+        center.add(crearBotonBarra("imagenes_icono", () -> abrirVentana(crearVisorReal(), "Visor de Fotos")));
+        center.add(crearBotonBarra("musica_icono", () -> abrirVentana(crearReproductorReal(), "Reproductor MP3")));
+        center.add(crearBotonBarra("instagram_icon", () -> abrirVentana(new InstaPanel(usuarioActual), "INSTA+")));
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 2));
         right.setOpaque(false);
@@ -274,11 +326,12 @@ public class MiniWindowsDesktop extends JFrame {
         add(taskBar, BorderLayout.SOUTH);
     }
 
-    private JButton crearBotonBarra(String emoji, Runnable accion) {
-        JButton btn = new JButton(emoji);
-        btn.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 18));
-        btn.setForeground(Color.WHITE);
-        btn.setPreferredSize(new Dimension(40, 36));
+    private JButton crearBotonBarra(String nombreIcono, Runnable accion) {
+        JButton btn = new JButton();
+        ImageIcon icon = cargarIcono(nombreIcono, 28, 28);
+        if (icon != null) btn.setIcon(icon);
+
+        btn.setPreferredSize(new Dimension(42, 38));
         btn.setContentAreaFilled(false);
         btn.setBorderPainted(false);
         btn.setFocusPainted(false);
@@ -298,7 +351,7 @@ public class MiniWindowsDesktop extends JFrame {
     private void abrirVentana(JComponent content, String titulo) {
         JInternalFrame frame = new JInternalFrame(titulo, true, true, true, true);
         frame.setContentPane(content);
-        frame.setSize(800, 520);
+        frame.setSize(840, 560);
         frame.setVisible(true);
         desktopPane.add(frame);
         try { frame.setSelected(true); } catch (Exception ignored) {}
@@ -310,10 +363,9 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // ==========================================
-    // --- 5 APLICACIONES TOTALMENTE REALES ---
+    // 5 APLICACIONES INTEGRADAS
     // ==========================================
 
-    // 1. EXPLORADOR DE ARCHIVOS REAL CON JTREE + HILO ORGANIZADOR
     private JPanel crearExploradorReal() {
         JPanel p = new JPanel(new BorderLayout());
         File raizUsuario = usuarioActual.isEsAdmin() 
@@ -339,7 +391,6 @@ public class MiniWindowsDesktop extends JFrame {
         JButton btnCrear = new JButton("📁 Nueva Carpeta");
         JButton btnEliminar = new JButton("❌ Eliminar");
 
-        // HILO EXIGIDO: Función Organizar concurrente
         btnOrganizar.addActionListener(e -> {
             new Thread(() -> {
                 organizarArchivos(raizUsuario);
@@ -411,7 +462,6 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
-    // 2. EDITOR DE TEXTO REAL CON FORMATO Y PACK DE FUENTES DEL SISTEMA
     private JPanel crearEditorReal() {
         JPanel p = new JPanel(new BorderLayout());
         JTextPane textPane = new JTextPane();
@@ -420,7 +470,6 @@ public class MiniWindowsDesktop extends JFrame {
         JToolBar tb = new JToolBar();
         tb.setFloatable(false);
 
-        // GraphicsEnvironment para obtener todas las fuentes del sistema
         String[] fuentes = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
         JComboBox<String> cbFuentes = new JComboBox<>(fuentes);
         cbFuentes.setSelectedItem("Arial");
@@ -445,7 +494,7 @@ public class MiniWindowsDesktop extends JFrame {
             textPane.setCharacterAttributes(attrs, false);
         });
 
-        JButton btnGuardar = new JButton("💾 Guardar Formato (.sop)");
+        JButton btnGuardar = new JButton("💾 Guardar (.sop)");
         btnGuardar.addActionListener(e -> {
             JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos"));
             if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -453,7 +502,7 @@ public class MiniWindowsDesktop extends JFrame {
                 if (!arch.getName().endsWith(".sop")) arch = new File(arch.getAbsolutePath() + ".sop");
                 try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(arch))) {
                     oos.writeObject(textPane.getStyledDocument());
-                    JOptionPane.showMessageDialog(this, "Documento y formato guardados en archivo binario.");
+                    JOptionPane.showMessageDialog(this, "Documento guardado.");
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage());
                 }
@@ -488,7 +537,6 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // 3. CONSOLA CMD REAL
     private JPanel crearCmdReal() {
         JPanel p = new JPanel(new BorderLayout());
         JTextArea areaCmd = new JTextArea();
@@ -564,7 +612,6 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // 4. VISOR DE FOTOS REAL
     private JPanel crearVisorReal() {
         JPanel p = new JPanel(new BorderLayout());
         JLabel lblImg = new JLabel("No hay imágenes cargadas", SwingConstants.CENTER);
@@ -617,7 +664,6 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // 5. REPRODUCTOR MP3 REAL CON HILO INDEPENDIENTE
     private JPanel crearReproductorReal() {
         JPanel p = new JPanel(new BorderLayout(10, 10));
         p.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
@@ -638,7 +684,7 @@ public class MiniWindowsDesktop extends JFrame {
         }
 
         JPanel bottom = new JPanel(new FlowLayout());
-        JButton btnPlay = new JButton("▶ Play (Thread)");
+        JButton btnPlay = new JButton("▶ Play");
         JButton btnPause = new JButton("⏸ Pause");
         JButton btnStop = new JButton("⏹ Stop");
         JButton btnAdd = new JButton("➕ Cargar Pista");
