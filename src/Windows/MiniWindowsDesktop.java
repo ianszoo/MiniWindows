@@ -18,6 +18,9 @@ import javax.swing.event.InternalFrameEvent;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.text.*;
 import javax.swing.tree.*;
+import javazoom.jl.decoder.Bitstream;
+import javazoom.jl.decoder.Header;
+import javazoom.jl.player.Player;
 
 /**
  * @author David Suazo Palao & Ian Suazo Palao
@@ -577,7 +580,7 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 2. EDITOR DE TEXTO CON FORMATO (JToolBar Corregido con addSeparator)
+    // 2. EDITOR DE TEXTO CON FORMATO
     // =========================================================================
     private JPanel crearEditorReal() {
         JPanel p = new JPanel(new BorderLayout());
@@ -585,7 +588,6 @@ public class MiniWindowsDesktop extends JFrame {
         textPane.setFont(new Font("Calibri", Font.PLAIN, 15));
         textPane.setBorder(new EmptyBorder(20, 25, 20, 25));
 
-        // JToolBar permite usar addSeparator() nativamente sin errores
         JToolBar ribbon = new JToolBar();
         ribbon.setFloatable(false);
         ribbon.setBackground(new Color(241, 245, 249));
@@ -652,7 +654,7 @@ public class MiniWindowsDesktop extends JFrame {
         ribbon.add(cbTamanos);
         ribbon.add(btnColor);
         ribbon.add(btnAplicar);
-        ribbon.addSeparator(); // Compila perfectamente
+        ribbon.addSeparator();
         ribbon.add(btnAbrir);
         ribbon.add(btnGuardar);
 
@@ -814,100 +816,90 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 5. MOTOR DE AUDIO MULTIFORMATO (.MP3 NATIVO CON PAUSA/REANUDACIÓN REAL)
+    // 5. MOTOR DE AUDIO HÍBRIDO (.MP3 CON JLAYER Y .WAV NATIVO CON PAUSA/REANUDACIÓN)
     // =========================================================================
     
     private static class MotorAudioPlayer {
-        private Process processWMP = null;
-        private BufferedWriter wmpWriter = null;
+        private Player playerJLayer = null;
+        private FileInputStream fis = null;
+        private BufferedInputStream bis = null;
         private Clip clipWav = null;
-        private FloatControl gainControl = null;
         private boolean isWav = false;
+        private Thread hiloReproductor = null;
+        private File archivoActual = null;
+        private long totalBytes = 0;
+        private long bytesPausados = 0;
+        private long microsegundosWavPausa = 0;
         private boolean isPaused = false;
         private boolean isPlaying = false;
         private int segundosTranscurridos = 0;
-        private int duracionEstimadaSegundos = 180;
-        private File archivoActual = null;
-        private long microsegundosWavPausa = 0;
+        private int duracionTotalSegundos = 180;
 
-        private synchronized void iniciarWorkerWMP() {
-            if (processWMP == null || !processWMP.isAlive()) {
-                try {
-                    // Script puente persistente con el reproductor nativo de Windows (Soporta MP3, M4A, etc.)
-                    String psCmd = "$w = New-Object -ComObject WMPlayer.OCX; "
-                            + "$w.settings.autoStart = $true; "
-                            + "while($l = [Console]::In.ReadLine()){ "
-                            + "  if(!$l){break} "
-                            + "  $idx = $l.IndexOf(' '); "
-                            + "  if($idx -gt 0){ $c=$l.Substring(0,$idx); $a=$l.Substring($idx+1) } else { $c=$l; $a='' } "
-                            + "  if($c -eq 'LOAD'){ $w.URL = $a } "
-                            + "  elseif($c -eq 'PLAY'){ $w.controls.play() } "
-                            + "  elseif($c -eq 'PAUSE'){ $w.controls.pause() } "
-                            + "  elseif($c -eq 'STOP'){ $w.controls.stop() } "
-                            + "  elseif($c -eq 'VOL'){ $w.settings.volume = [int]$a } "
-                            + "  elseif($c -eq 'EXIT'){ break } "
-                            + "}";
-                    ProcessBuilder pb = new ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command", psCmd);
-                    processWMP = pb.start();
-                    wmpWriter = new BufferedWriter(new OutputStreamWriter(processWMP.getOutputStream()));
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
-            }
-        }
-
-        private synchronized void enviarComandoWMP(String cmd) {
-            try {
-                if (wmpWriter != null && processWMP != null && processWMP.isAlive()) {
-                    wmpWriter.write(cmd);
-                    wmpWriter.newLine();
-                    wmpWriter.flush();
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        }
-
-        public void reproducir(File file, int volInicial) {
+        public synchronized void reproducir(File file) throws Exception {
             detener();
             this.archivoActual = file;
-            this.isPaused = false;
-            this.isPlaying = true;
+            this.totalBytes = file.length();
+            this.bytesPausados = 0;
             this.segundosTranscurridos = 0;
 
             String name = file.getName().toLowerCase();
 
-            // Si es WAV nativo, usar JavaSound
+            // 1. REPRODUCCIÓN DE ARCHIVOS .WAV NATIVOS
             if (name.endsWith(".wav") || name.endsWith(".au") || name.endsWith(".aiff")) {
                 isWav = true;
-                try {
-                    AudioInputStream ais = AudioSystem.getAudioInputStream(file);
-                    clipWav = AudioSystem.getClip();
-                    clipWav.open(ais);
-                    if (clipWav.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-                        gainControl = (FloatControl) clipWav.getControl(FloatControl.Type.MASTER_GAIN);
-                    }
-                    duracionEstimadaSegundos = (int) (clipWav.getMicrosecondLength() / 1_000_000);
-                    setVolumen(volInicial);
-                    clipWav.start();
-                    return;
-                } catch (Exception ignored) {
-                    isWav = false;
-                }
+                AudioInputStream ais = AudioSystem.getAudioInputStream(file);
+                clipWav = AudioSystem.getClip();
+                clipWav.open(ais);
+                duracionTotalSegundos = (int) (clipWav.getMicrosecondLength() / 1_000_000);
+                isPlaying = true;
+                isPaused = false;
+                clipWav.start();
+                return;
             }
 
-            // Para .MP3 y otros formatos: Reproducción real por altavoz vía subsistema de Windows
+            // 2. REPRODUCCIÓN DE ARCHIVOS .MP3 CON JLAYER
             isWav = false;
-            iniciarWorkerWMP();
-            enviarComandoWMP("LOAD " + file.getAbsolutePath());
-            enviarComandoWMP("VOL " + volInicial);
-
-            // Estimar duración en segundos basada en el tamaño del archivo MP3
-            long bytes = file.length();
-            duracionEstimadaSegundos = Math.max(30, (int) (bytes / (192 * 1024 / 8)));
+            duracionTotalSegundos = calcularDuracionRealMP3(file);
+            iniciarStreamDesdeOffset(0);
         }
 
-        public void pausar() {
+        // Lee el encabezado del archivo MP3 para calcular la duración EXACTA (no 39 mins)
+        private int calcularDuracionRealMP3(File file) {
+            try (FileInputStream f = new FileInputStream(file)) {
+                Bitstream bs = new Bitstream(f);
+                Header h = bs.readFrame();
+                if (h != null) {
+                    int ms = (int) h.total_ms((int) file.length());
+                    bs.close();
+                    return Math.max(1, ms / 1000);
+                }
+            } catch (Exception ignored) {}
+            // Respaldo en caso de fallo
+            return Math.max(30, (int) (file.length() / (192 * 1024 / 8)));
+        }
+
+        private synchronized void iniciarStreamDesdeOffset(long offset) throws Exception {
+            fis = new FileInputStream(archivoActual);
+            if (offset > 0) {
+                fis.skip(offset);
+            }
+            bis = new BufferedInputStream(fis);
+            playerJLayer = new Player(bis);
+            isPlaying = true;
+            isPaused = false;
+
+            hiloReproductor = new Thread(() -> {
+                try {
+                    playerJLayer.play();
+                } catch (Exception ex) {
+                    isPlaying = false;
+                }
+            });
+            hiloReproductor.setDaemon(true);
+            hiloReproductor.start();
+        }
+
+        public synchronized void pausar() {
             if (!isPlaying || isPaused) return;
             isPaused = true;
             isPlaying = false;
@@ -916,27 +908,39 @@ public class MiniWindowsDesktop extends JFrame {
                 microsegundosWavPausa = clipWav.getMicrosecondPosition();
                 clipWav.stop();
             } else {
-                enviarComandoWMP("PAUSE");
+                try {
+                    if (fis != null) {
+                        bytesPausados = totalBytes - fis.available();
+                    }
+                    if (playerJLayer != null) {
+                        playerJLayer.close();
+                    }
+                } catch (Exception ignored) {}
             }
         }
 
-        public void reanudar() {
-            if (!isPaused) return;
-            isPaused = false;
-            isPlaying = true;
-
+        public synchronized void reanudar() {
+            if (!isPaused || archivoActual == null) return;
             if (isWav && clipWav != null && clipWav.isOpen()) {
                 clipWav.setMicrosecondPosition(microsegundosWavPausa);
                 clipWav.start();
+                isPlaying = true;
+                isPaused = false;
             } else {
-                enviarComandoWMP("PLAY");
+                try {
+                    iniciarStreamDesdeOffset(bytesPausados);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
             }
         }
 
-        public void detener() {
+        public synchronized void detener() {
             isPlaying = false;
             isPaused = false;
+            bytesPausados = 0;
             segundosTranscurridos = 0;
+            microsegundosWavPausa = 0;
 
             if (isWav && clipWav != null) {
                 try {
@@ -944,24 +948,19 @@ public class MiniWindowsDesktop extends JFrame {
                     clipWav.close();
                 } catch (Exception ignored) {}
                 clipWav = null;
-            } else {
-                enviarComandoWMP("STOP");
             }
-        }
 
-        public void setVolumen(int vol) { // 0 a 100
-            if (isWav && gainControl != null) {
-                float val = vol / 100.0f;
-                float min = gainControl.getMinimum();
-                float max = gainControl.getMaximum();
-                if (val <= 0.01f) {
-                    gainControl.setValue(min);
-                } else {
-                    float dB = (float) (Math.log10(val) * 20.0);
-                    gainControl.setValue(Math.max(min, Math.min(max, dB)));
-                }
-            } else {
-                enviarComandoWMP("VOL " + vol);
+            if (playerJLayer != null) {
+                try {
+                    playerJLayer.close();
+                } catch (Exception ignored) {}
+                playerJLayer = null;
+            }
+            if (bis != null) {
+                try { bis.close(); } catch (Exception ignored) {}
+            }
+            if (fis != null) {
+                try { fis.close(); } catch (Exception ignored) {}
             }
         }
 
@@ -978,13 +977,7 @@ public class MiniWindowsDesktop extends JFrame {
             return segundosTranscurridos;
         }
 
-        public int getDuracionTotalSegundos() {
-            if (isWav && clipWav != null && clipWav.isOpen()) {
-                return (int) (clipWav.getMicrosecondLength() / 1_000_000);
-            }
-            return Math.max(duracionEstimadaSegundos, 60);
-        }
-
+        public int getDuracionTotalSegundos() { return duracionTotalSegundos; }
         public boolean estaReproduciendo() { return isPlaying; }
         public boolean estaPausado() { return isPaused; }
         public File getArchivoActual() { return archivoActual; }
@@ -996,7 +989,7 @@ public class MiniWindowsDesktop extends JFrame {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(new Color(32, 33, 36));
 
-        // 1. SIDEBAR IZQUIERDO (Estilo oscuro, cero cuadros blancos)
+        // 1. SIDEBAR IZQUIERDO (Estilo oscuro, sin cuadros blancos)
         JPanel sidebar = new JPanel(new BorderLayout());
         sidebar.setPreferredSize(new Dimension(200, 0));
         sidebar.setBackground(new Color(24, 25, 28));
@@ -1030,7 +1023,7 @@ public class MiniWindowsDesktop extends JFrame {
         navList.setBorder(new EmptyBorder(10, 8, 10, 8));
 
         JButton btnBiblioteca = crearBotonSidebarItem("Mi Biblioteca", true);
-        JButton btnAgregarAudio = crearBotonSidebarItem("Agregar MP3 / Audio...", false);
+        JButton btnAgregarAudio = crearBotonSidebarItem("Agregar MP3 / WAV...", false);
         JButton btnAbrirCarpeta = crearBotonSidebarItem("Carpeta Música", false);
 
         navList.add(btnBiblioteca);
@@ -1122,7 +1115,7 @@ public class MiniWindowsDesktop extends JFrame {
         centerPanel.add(splitCenter, BorderLayout.CENTER);
         p.add(centerPanel, BorderLayout.CENTER);
 
-        // 3. BARRA INFERIOR DE REPRODUCCIÓN (VECTORIAL Y VINCULADA AL AUDIO REAL)
+        // 3. BARRA INFERIOR DE REPRODUCCIÓN (PLAY / PAUSA / STOP REAL)
         JPanel bottomBar = new JPanel(new BorderLayout(10, 4));
         bottomBar.setBackground(new Color(18, 19, 21));
         bottomBar.setBorder(new EmptyBorder(6, 18, 8, 18));
@@ -1195,34 +1188,16 @@ public class MiniWindowsDesktop extends JFrame {
         centerBtns.add(btnNext);
         controlRow.add(centerBtns, BorderLayout.CENTER);
 
-        // Control de Volumen
-        JPanel rightTools = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
-        rightTools.setOpaque(false);
-        JLabel lblVol = new JLabel("VOL");
-        lblVol.setFont(new Font("Segoe UI", Font.BOLD, 10));
-        lblVol.setForeground(TEXT_MUTED);
-        JSlider volSlider = new JSlider(0, 100, 80);
-        volSlider.setPreferredSize(new Dimension(80, 20));
-        volSlider.setOpaque(false);
-
-        volSlider.addChangeListener(e -> {
-            motorAudio.setVolumen(volSlider.getValue());
-        });
-
-        rightTools.add(lblVol);
-        rightTools.add(volSlider);
-
-        controlRow.add(rightTools, BorderLayout.EAST);
         bottomBar.add(controlRow, BorderLayout.CENTER);
         p.add(bottomBar, BorderLayout.SOUTH);
 
-        // Carga de Archivos de la carpeta Música
+        // Carga de Archivos de la carpeta Música (.mp3 y .wav soportados simultáneamente)
         File dirMusica = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Música");
         Runnable recargarMusica = () -> {
             playlistModel.clear();
             File[] canciones = dirMusica.listFiles((dir, name) -> {
                 String n = name.toLowerCase();
-                return n.endsWith(".mp3") || n.endsWith(".wav") || n.endsWith(".m4a") || n.endsWith(".wma") || n.endsWith(".au");
+                return n.endsWith(".mp3") || n.endsWith(".wav") || n.endsWith(".au");
             });
             if (canciones != null) {
                 for (File c : canciones) playlistModel.addElement(c);
@@ -1235,7 +1210,7 @@ public class MiniWindowsDesktop extends JFrame {
             if (sel != null) {
                 lblTrackTitle.setText(sel.getName());
                 txtDescripcion.setText("Título: " + sel.getName() + "\n\n"
-                        + "Formato: Audio MP3 / Nativo\n"
+                        + "Formato: Audio " + obtenerExtension(sel.getName()) + "\n"
                         + "Tamaño: " + (sel.length() / 1024) + " KB\n"
                         + "Ruta: " + sel.getAbsolutePath());
             }
@@ -1300,7 +1275,7 @@ public class MiniWindowsDesktop extends JFrame {
                 return;
             }
 
-            // 2. SI ESTABA PAUSADO EN LA MISMA PISTA -> REANUDAR EN EL MISMO SEGUNDO
+            // 2. SI ESTABA PAUSADO EN LA MISMA PISTA -> REANUDAR
             if (motorAudio.estaPausado() && archivoFinal.equals(motorAudio.getArchivoActual())) {
                 motorAudio.reanudar();
                 btnPlay.setText("PAUSE");
@@ -1308,16 +1283,25 @@ public class MiniWindowsDesktop extends JFrame {
                 return;
             }
 
-            // 3. REPRODUCIR NUEVA CANCIÓN DESDE EL INICIO
+            // 3. REPRODUCIR NUEVA CANCIÓN DESDE EL INICIO EN SU PROPIO HILO
             new Thread(() -> {
-                motorAudio.reproducir(archivoFinal, volSlider.getValue());
-                SwingUtilities.invokeLater(() -> {
-                    btnPlay.setText("PAUSE");
-                    btnPlay.repaint();
-                    lblTrackTitle.setText(archivoFinal.getName());
-                    int tot = motorAudio.getDuracionTotalSegundos();
-                    lblTimeTotal.setText(String.format("%02d:%02d", tot / 60, tot % 60));
-                });
+                try {
+                    motorAudio.reproducir(archivoFinal);
+                    SwingUtilities.invokeLater(() -> {
+                        btnPlay.setText("PAUSE");
+                        btnPlay.repaint();
+                        lblTrackTitle.setText(archivoFinal.getName());
+                        int tot = motorAudio.getDuracionTotalSegundos();
+                        lblTimeTotal.setText(String.format("%02d:%02d", tot / 60, tot % 60));
+                    });
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(this, "Error al reproducir: " + ex.getMessage());
+                        btnPlay.setText("PLAY");
+                        btnPlay.repaint();
+                    });
+                }
             }).start();
         });
 
