@@ -1,4 +1,4 @@
-package Windows;
+            package Windows;
 
 import Insta.InstaPanel;
 import java.awt.*;
@@ -1314,17 +1314,28 @@ public class MiniWindowsDesktop extends JFrame {
         });
 
         btnPrev.addActionListener(e -> {
-            int idx = playlist.getSelectedIndex();
-            if (idx > 0) {
-                playlist.setSelectedIndex(idx - 1);
+            int total = playlistModel.getSize();
+            if (total > 0) {
+                int idx = playlist.getSelectedIndex();
+                int anterior = (idx - 1 + total) % total;
+                playlist.setSelectedIndex(anterior);
+                
+                if (motorAudio.estaReproduciendo()) {
+                    motorAudio.detener();
+                }
                 btnPlay.doClick();
             }
         });
 
         btnNext.addActionListener(e -> {
-            int idx = playlist.getSelectedIndex();
-            if (idx != -1 && idx < playlistModel.getSize() - 1) {
-                playlist.setSelectedIndex(idx + 1);
+            int total = playlistModel.getSize();
+            if (total > 0) {
+                int idx = playlist.getSelectedIndex();
+                int siguiente = (idx + 1) % total;
+                playlist.setSelectedIndex(siguiente);
+                if (motorAudio.estaReproduciendo()) {
+                    motorAudio.detener();
+                }
                 btnPlay.doClick();
             }
         });
