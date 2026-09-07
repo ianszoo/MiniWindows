@@ -1,4 +1,4 @@
-            package Windows;
+package Windows;
 
 import Insta.InstaPanel;
 import java.awt.*;
@@ -13,6 +13,8 @@ import java.util.Map;
 import javax.sound.sampled.*;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.CaretEvent;
+import javax.swing.event.CaretListener;
 import javax.swing.event.InternalFrameAdapter;
 import javax.swing.event.InternalFrameEvent;
 import javax.swing.table.DefaultTableModel;
@@ -425,10 +427,10 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     private void abrirExplorador() { gestionarVentana("EXPLORADOR", "Explorador de Archivos (Z:\\)", crearExploradorReal(), 880, 560); }
-    private void abrirEditor() { gestionarVentana("EDITOR", "Editor de Documentos con Formato", crearEditorReal(), 820, 540); }
+    private void abrirEditor() { gestionarVentana("EDITOR", "Bloc de Notas - Editor con Formato", crearEditorReal(), 860, 560); }
     private void abrirVisor() { gestionarVentana("VISOR", "Visor de Imágenes", crearVisorReal(), 760, 520); }
     private void abrirCMD() { gestionarVentana("CMD", "Símbolo del Sistema (CMD)", crearCmdReal(), 720, 440); }
-    private void abrirReproductor() { gestionarVentana("REPRODUCTOR", "Reproductor de Música", crearReproductorReal(), 920, 580); }
+    private void abrirReproductor() { gestionarVentana("REPRODUCTOR", "Media Player", crearReproductorReal(), 920, 580); }
     private void abrirInsta() { gestionarVentana("INSTA", "INSTA+ - Red Social Integrada", new InstaPanel(usuarioActual), 920, 620); }
 
     // =========================================================================
@@ -580,48 +582,127 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 2. EDITOR DE TEXTO CON FORMATO
+    // 2. EDITOR DE TEXTO CON FORMATO (MODERNO: SOLO CAMBIA EL TEXTO SELECCIONADO)
     // =========================================================================
     private JPanel crearEditorReal() {
         JPanel p = new JPanel(new BorderLayout());
+        p.setBackground(new Color(32, 32, 32));
+
+        // 1. LIENZO DEL EDITOR OSCURO CON MÁRGENES
         JTextPane textPane = new JTextPane();
-        textPane.setFont(new Font("Calibri", Font.PLAIN, 15));
-        textPane.setBorder(new EmptyBorder(20, 25, 20, 25));
+        textPane.setFont(new Font("Consolas", Font.PLAIN, 15));
+        textPane.setBackground(new Color(30, 30, 30));
+        textPane.setForeground(new Color(240, 240, 240));
+        textPane.setCaretColor(Color.WHITE);
+        textPane.setSelectionColor(new Color(0, 120, 215));
+        textPane.setSelectedTextColor(Color.WHITE);
+        textPane.setBorder(new EmptyBorder(15, 20, 15, 20));
+
+        // Formato inicial por defecto en los atributos de entrada
+        SimpleAttributeSet defaultAttrs = new SimpleAttributeSet();
+        StyleConstants.setFontFamily(defaultAttrs, "Consolas");
+        StyleConstants.setFontSize(defaultAttrs, 15);
+        StyleConstants.setForeground(defaultAttrs, new Color(240, 240, 240));
+        ((MutableAttributeSet) textPane.getInputAttributes()).addAttributes(defaultAttrs);
+        textPane.setCharacterAttributes(defaultAttrs, false);
+
+        JScrollPane scrollEditor = new JScrollPane(textPane);
+        scrollEditor.setBorder(null);
+        scrollEditor.setBackground(new Color(30, 30, 30));
+
+        // 2. BARRA DE HERRAMIENTAS MODERNA
+        JPanel topContainer = new JPanel(new BorderLayout());
+        topContainer.setBackground(new Color(38, 38, 38));
 
         JToolBar ribbon = new JToolBar();
         ribbon.setFloatable(false);
-        ribbon.setBackground(new Color(241, 245, 249));
-        ribbon.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(203, 213, 225)));
+        ribbon.setBackground(new Color(38, 38, 38));
+        ribbon.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(55, 55, 55)),
+                new EmptyBorder(6, 10, 6, 10)
+        ));
 
+        // Selector de Fuentes del Sistema
         String[] fuentes = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
         JComboBox<String> cbFuentes = new JComboBox<>(fuentes);
-        cbFuentes.setSelectedItem("Arial");
-        cbFuentes.setMaximumSize(new Dimension(150, 28));
+        cbFuentes.setSelectedItem("Consolas");
+        cbFuentes.setMaximumSize(new Dimension(160, 28));
+        cbFuentes.setBackground(new Color(48, 48, 48));
+        cbFuentes.setForeground(Color.WHITE);
 
+        // Selector de Tamaños
         Integer[] tamanos = {10, 12, 14, 16, 18, 20, 24, 28, 32, 40};
         JComboBox<Integer> cbTamanos = new JComboBox<>(tamanos);
-        cbTamanos.setSelectedItem(14);
+        cbTamanos.setSelectedItem(15);
         cbTamanos.setMaximumSize(new Dimension(60, 28));
+        cbTamanos.setBackground(new Color(48, 48, 48));
+        cbTamanos.setForeground(Color.WHITE);
 
-        final Color[] colorActual = {Color.BLACK};
-        JButton btnColor = new JButton("Color");
+        final Color[] colorActual = {new Color(240, 240, 240)};
+        final boolean[] isBold = {false};
+        final boolean[] isItalic = {false};
+        final boolean[] isUnderline = {false};
+
+        // Función para aplicar formato únicamente al texto seleccionado
+        Runnable actualizarFormato = () -> {
+            String f = (String) cbFuentes.getSelectedItem();
+            Integer t = (Integer) cbTamanos.getSelectedItem();
+            if (f != null && t != null) {
+                aplicarFormatoTexto(textPane, f, t, colorActual[0], isBold[0], isItalic[0], isUnderline[0]);
+            }
+        };
+
+        JButton btnColor = crearBotonEditor("🎨 Color");
         btnColor.addActionListener(e -> {
-            Color nuevo = JColorChooser.showDialog(this, "Selecciona Color", colorActual[0]);
-            if (nuevo != null) colorActual[0] = nuevo;
+            Color nuevo = JColorChooser.showDialog(this, "Selecciona Color de Texto", colorActual[0]);
+            if (nuevo != null) {
+                colorActual[0] = nuevo;
+                btnColor.setForeground(colorActual[0]);
+                actualizarFormato.run();
+            }
         });
 
-        JButton btnAplicar = new JButton("Aplicar");
+        // Botones de estilo
+        JButton btnBold = crearBotonEditor("B");
+        btnBold.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        btnBold.setPreferredSize(new Dimension(32, 28));
+
+        JButton btnItalic = crearBotonEditor("I");
+        btnItalic.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+        btnItalic.setPreferredSize(new Dimension(32, 28));
+
+        JButton btnUnderline = crearBotonEditor("U");
+        btnUnderline.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        btnUnderline.setPreferredSize(new Dimension(32, 28));
+
+        btnBold.addActionListener(e -> {
+            isBold[0] = !isBold[0];
+            btnBold.setBackground(isBold[0] ? new Color(70, 70, 70) : new Color(48, 48, 48));
+            actualizarFormato.run();
+        });
+
+        btnItalic.addActionListener(e -> {
+            isItalic[0] = !isItalic[0];
+            btnItalic.setBackground(isItalic[0] ? new Color(70, 70, 70) : new Color(48, 48, 48));
+            actualizarFormato.run();
+        });
+
+        btnUnderline.addActionListener(e -> {
+            isUnderline[0] = !isUnderline[0];
+            btnUnderline.setBackground(isUnderline[0] ? new Color(70, 70, 70) : new Color(48, 48, 48));
+            actualizarFormato.run();
+        });
+
+        // Eventos automáticos al cambiar fuente o tamaño
+        cbFuentes.addActionListener(e -> actualizarFormato.run());
+        cbTamanos.addActionListener(e -> actualizarFormato.run());
+
+        JButton btnAplicar = crearBotonEditor("Aplicar");
         btnAplicar.setBackground(ACCENT_BLUE);
         btnAplicar.setForeground(Color.WHITE);
-        btnAplicar.addActionListener(e -> {
-            SimpleAttributeSet attrs = new SimpleAttributeSet();
-            StyleConstants.setFontFamily(attrs, (String) cbFuentes.getSelectedItem());
-            StyleConstants.setFontSize(attrs, (Integer) cbTamanos.getSelectedItem());
-            StyleConstants.setForeground(attrs, colorActual[0]);
-            textPane.setCharacterAttributes(attrs, false);
-        });
+        btnAplicar.addActionListener(e -> actualizarFormato.run());
 
-        JButton btnGuardar = new JButton("Guardar (.sop)");
+        JButton btnGuardar = crearBotonEditor(" Guardar (.sop)");
         btnGuardar.addActionListener(e -> {
             JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos"));
             if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -636,7 +717,7 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
-        JButton btnAbrir = new JButton("Abrir");
+        JButton btnAbrir = crearBotonEditor(" Abrir");
         btnAbrir.addActionListener(e -> {
             JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos"));
             if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -648,19 +729,103 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
-        ribbon.add(new JLabel(" Fuente: "));
+        JLabel lblFuente = new JLabel("  Fuente: ");
+        lblFuente.setForeground(new Color(200, 200, 200));
+        ribbon.add(lblFuente);
         ribbon.add(cbFuentes);
-        ribbon.add(new JLabel(" Tamaño: "));
+
+        JLabel lblTam = new JLabel("  Tamaño: ");
+        lblTam.setForeground(new Color(200, 200, 200));
+        ribbon.add(lblTam);
         ribbon.add(cbTamanos);
+
+        ribbon.add(Box.createHorizontalStrut(6));
         ribbon.add(btnColor);
+        ribbon.add(Box.createHorizontalStrut(4));
+        ribbon.add(btnBold);
+        ribbon.add(btnItalic);
+        ribbon.add(btnUnderline);
+        ribbon.add(Box.createHorizontalStrut(4));
         ribbon.add(btnAplicar);
         ribbon.addSeparator();
         ribbon.add(btnAbrir);
         ribbon.add(btnGuardar);
 
-        p.add(ribbon, BorderLayout.NORTH);
-        p.add(new JScrollPane(textPane), BorderLayout.CENTER);
+        topContainer.add(ribbon, BorderLayout.CENTER);
+
+        // 3. BARRA DE ESTADO INFERIOR
+        JPanel statusBar = new JPanel(new BorderLayout());
+        statusBar.setBackground(new Color(24, 24, 24));
+        statusBar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(45, 45, 45)),
+                new EmptyBorder(4, 15, 4, 15)
+        ));
+
+        JLabel lblStatusLeft = new JLabel("Ln 1, Col 1   |   0 caracteres");
+        lblStatusLeft.setForeground(new Color(150, 150, 150));
+        lblStatusLeft.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+
+        JLabel lblStatusRight = new JLabel("Formato: Binario (.sop)   |   100%   |   Windows (CRLF)   |   UTF-8");
+        lblStatusRight.setForeground(new Color(150, 150, 150));
+        lblStatusRight.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+
+        statusBar.add(lblStatusLeft, BorderLayout.WEST);
+        statusBar.add(lblStatusRight, BorderLayout.EAST);
+
+        textPane.addCaretListener(e -> {
+            try {
+                int pos = textPane.getCaretPosition();
+                Element root = textPane.getDocument().getDefaultRootElement();
+                int line = root.getElementIndex(pos) + 1;
+                int col = pos - root.getElement(line - 1).getStartOffset() + 1;
+                int totalChars = textPane.getDocument().getLength();
+                lblStatusLeft.setText("Ln " + line + ", Col " + col + "   |   " + totalChars + " caracteres");
+            } catch (Exception ignored) {}
+        });
+
+        p.add(topContainer, BorderLayout.NORTH);
+        p.add(scrollEditor, BorderLayout.CENTER);
+        p.add(statusBar, BorderLayout.SOUTH);
+
         return p;
+    }
+
+    private JButton crearBotonEditor(String texto) {
+        JButton btn = new JButton(texto);
+        btn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        btn.setForeground(Color.WHITE);
+        btn.setBackground(new Color(48, 48, 48));
+        btn.setContentAreaFilled(true);
+        btn.setBorderPainted(false);
+        btn.setFocusPainted(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setBorder(new EmptyBorder(5, 10, 5, 10));
+        return btn;
+    }
+
+    // APLICA EXCLUSIVAMENTE AL TEXTO SELECCIONADO (O AL TEXTO QUE SE ESCRIBA DESPUÉS)
+    private void aplicarFormatoTexto(JTextPane pane, String fuente, int tamano, Color color, boolean bold, boolean italic, boolean underline) {
+        SimpleAttributeSet attrs = new SimpleAttributeSet();
+        if (fuente != null) StyleConstants.setFontFamily(attrs, fuente);
+        if (tamano > 0) StyleConstants.setFontSize(attrs, tamano);
+        if (color != null) StyleConstants.setForeground(attrs, color);
+        StyleConstants.setBold(attrs, bold);
+        StyleConstants.setItalic(attrs, italic);
+        StyleConstants.setUnderline(attrs, underline);
+
+        int start = pane.getSelectionStart();
+        int end = pane.getSelectionEnd();
+        StyledDocument doc = pane.getStyledDocument();
+
+        // 1. SI HAY TEXTO SUBRAYADO/SELECCIONADO: Modifica únicamente ese fragmento
+        if (start != end) {
+            doc.setCharacterAttributes(start, end - start, attrs, false);
+        } else {
+            // 2. SI NO HAY SELECCIÓN: NO toca el texto existente, solo configura el nuevo texto que se escriba
+            MutableAttributeSet inputAttrs = (MutableAttributeSet) pane.getInputAttributes();
+            inputAttrs.addAttributes(attrs);
+            pane.setCharacterAttributes(attrs, false);
+        }
     }
 
     // =========================================================================
@@ -863,7 +1028,6 @@ public class MiniWindowsDesktop extends JFrame {
             iniciarStreamDesdeOffset(0);
         }
 
-        // Lee el encabezado del archivo MP3 para calcular la duración EXACTA (no 39 mins)
         private int calcularDuracionRealMP3(File file) {
             try (FileInputStream f = new FileInputStream(file)) {
                 Bitstream bs = new Bitstream(f);
@@ -874,7 +1038,6 @@ public class MiniWindowsDesktop extends JFrame {
                     return Math.max(1, ms / 1000);
                 }
             } catch (Exception ignored) {}
-            // Respaldo en caso de fallo
             return Math.max(30, (int) (file.length() / (192 * 1024 / 8)));
         }
 
@@ -989,7 +1152,7 @@ public class MiniWindowsDesktop extends JFrame {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(new Color(32, 33, 36));
 
-        // 1. SIDEBAR IZQUIERDO (Estilo oscuro, sin cuadros blancos)
+        // 1. SIDEBAR IZQUIERDO
         JPanel sidebar = new JPanel(new BorderLayout());
         sidebar.setPreferredSize(new Dimension(200, 0));
         sidebar.setBackground(new Color(24, 25, 28));
@@ -1191,7 +1354,7 @@ public class MiniWindowsDesktop extends JFrame {
         bottomBar.add(controlRow, BorderLayout.CENTER);
         p.add(bottomBar, BorderLayout.SOUTH);
 
-        // Carga de Archivos de la carpeta Música (.mp3 y .wav soportados simultáneamente)
+        // Carga de Archivos de la carpeta Música
         File dirMusica = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Música");
         Runnable recargarMusica = () -> {
             playlistModel.clear();
@@ -1297,9 +1460,7 @@ public class MiniWindowsDesktop extends JFrame {
                 } catch (Exception ex) {
                     ex.printStackTrace();
                     SwingUtilities.invokeLater(() -> {
-                        JOptionPane.showMessageDialog(this, "Error al reproducir: " + ex.getMessage());
-                        btnPlay.setText("PLAY");
-                        btnPlay.repaint();
+                        JOptionPane.showMessageDialog(this, "Error al reproducir: " + ex.getMessage() + "\nAsegúrate de tener 'jl1.0.1.jar' en las librerías del proyecto.");
                     });
                 }
             }).start();
@@ -1313,13 +1474,13 @@ public class MiniWindowsDesktop extends JFrame {
             lblTimeCur.setText("00:00");
         });
 
+        // NAVEGACIÓN CIRCULAR (PREV Y NEXT)
         btnPrev.addActionListener(e -> {
             int total = playlistModel.getSize();
             if (total > 0) {
                 int idx = playlist.getSelectedIndex();
                 int anterior = (idx - 1 + total) % total;
                 playlist.setSelectedIndex(anterior);
-                
                 if (motorAudio.estaReproduciendo()) {
                     motorAudio.detener();
                 }
@@ -1343,7 +1504,7 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // Botones del Sidebar (100% Oscuros con Acento Naranja, Cero Fondo Blanco)
+    // Botones del Sidebar
     private JButton crearBotonSidebarItem(String texto, boolean isSelected) {
         JButton btn = new JButton(texto) {
             @Override
@@ -1377,7 +1538,7 @@ public class MiniWindowsDesktop extends JFrame {
         return btn;
     }
 
-    // Botones Vectoriales (1 = Prev, 2 = Next, 3 = Stop)
+    // Botones Vectoriales
     private JButton crearBotonVectorial(int tipo) {
         JButton btn = new JButton() {
             @Override
