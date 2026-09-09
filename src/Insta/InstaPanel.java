@@ -11,7 +11,6 @@ import Windows.Nodo;
 import Windows.Usuario;
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.geom.Ellipse2D;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -47,9 +46,9 @@ public class InstaPanel extends JPanel {
     public static final Color ONLINE_GREEN     = new Color(34, 197, 94);
 
     // Degradados
-    public static final Color G_ORANGE = new Color(245, 133, 41);
-    public static final Color G_PINK   = new Color(221, 42, 123);
-    public static final Color G_PURPLE = new Color(129, 52, 175);
+    public static final Color G_ORANGE  = new Color(245, 133, 41);
+    public static final Color G_PINK    = new Color(221, 42, 123);
+    public static final Color G_PURPLE  = new Color(129, 52, 175);
     public static final Color BTN_BLUE_1 = new Color(56, 88, 246);
     public static final Color BTN_BLUE_2 = new Color(139, 63, 251);
 
@@ -78,16 +77,51 @@ public class InstaPanel extends JPanel {
         rootContainer = new JPanel(rootCardLayout);
         rootContainer.setBackground(BG_MAIN);
 
-        // Vista 1: Login / Registro
+        // Vista 1: Login / Registro (Sin sidebar)
         rootContainer.add(crearVistaAutenticacion(), "AUTH");
 
-        // Vista 2: Aplicación Principal (Sidebar + Secciones)
+        // Vista 2: Aplicación Principal (Sidebar con iconos + Pantallas)
         rootContainer.add(crearVistaAppPrincipal(), "APP");
 
         add(rootContainer, BorderLayout.CENTER);
 
         rootCardLayout.show(rootContainer, "AUTH");
         iniciarHiloSincronizacionChat();
+    }
+
+    // =========================================================================
+    // CARGADOR DE ICONOS PERSONALIZADOS (ImagenesInsta)
+    // =========================================================================
+    public static ImageIcon cargarIconoInsta(String nombreBase, int ancho, int alto) {
+        String[] extensiones = {".png", ".jpg", ".jpeg", ""};
+        String[] rutas = {
+            "/Insta/ImagenesInsta/" + nombreBase,
+            "src/Insta/ImagenesInsta/" + nombreBase,
+            "Insta/ImagenesInsta/" + nombreBase,
+            "/ImagenesInsta/" + nombreBase,
+            "src/ImagenesInsta/" + nombreBase,
+            "ImagenesInsta/" + nombreBase
+        };
+
+        for (String r : rutas) {
+            for (String ext : extensiones) {
+                String fullPath = r + ext;
+                if (fullPath.startsWith("/")) {
+                    java.net.URL url = InstaPanel.class.getResource(fullPath);
+                    if (url != null) {
+                        Image img = new ImageIcon(url).getImage().getScaledInstance(ancho, alto, Image.SCALE_SMOOTH);
+                        return new ImageIcon(img);
+                    }
+                } else {
+                    File f = new File(fullPath);
+                    if (f.exists()) {
+                        Image img = new ImageIcon(f.getAbsolutePath()).getImage().getScaledInstance(ancho, alto, Image.SCALE_SMOOTH);
+                        return new ImageIcon(img);
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     // =========================================================================
@@ -403,7 +437,7 @@ public class InstaPanel extends JPanel {
     }
 
     // =========================================================================
-    // APLICACIÓN PRINCIPAL (SIDEBAR ESTILO INSTAGRAM)
+    // APLICACIÓN PRINCIPAL (SIDEBAR CON ICONOS)
     // =========================================================================
     private JPanel crearVistaAppPrincipal() {
         JPanel appPanel = new JPanel(new BorderLayout());
@@ -455,27 +489,29 @@ public class InstaPanel extends JPanel {
         logoPanel.add(lblLogo);
         sidebar.add(logoPanel, BorderLayout.NORTH);
 
+        // Menú con tus iconos personalizados de ImagenesInsta
         JPanel menuPanel = new JPanel();
         menuPanel.setLayout(new BoxLayout(menuPanel, BoxLayout.Y_AXIS));
         menuPanel.setOpaque(false);
         menuPanel.setBorder(new EmptyBorder(8, 12, 10, 12));
 
-        menuPanel.add(crearItemMenuSidebar("🏠 Inicio", "TIMELINE"));
+        menuPanel.add(crearItemMenuSidebar("Inicio", "TIMELINE", "icono_inicio_insta"));
         menuPanel.add(Box.createVerticalStrut(4));
-        menuPanel.add(crearItemMenuSidebar("🔍 Buscar", "SEARCH"));
+        menuPanel.add(crearItemMenuSidebar("Buscar", "SEARCH", "icono_buscar_insta"));
         menuPanel.add(Box.createVerticalStrut(4));
-        menuPanel.add(crearItemMenuSidebar("➕ Crear", "UPLOAD"));
+        menuPanel.add(crearItemMenuSidebar("Crear", "UPLOAD", "icono_crear_insta"));
         menuPanel.add(Box.createVerticalStrut(4));
-        menuPanel.add(crearItemMenuSidebar("💬 Mensajes", "INBOX"));
+        menuPanel.add(crearItemMenuSidebar("Mensajes", "INBOX", "icono_mensajes_insta"));
         menuPanel.add(Box.createVerticalStrut(4));
-        menuPanel.add(crearItemMenuSidebar("❤️ Notificaciones", "NOTIFICACIONES"));
+        menuPanel.add(crearItemMenuSidebar("Notificaciones", "NOTIFICACIONES", "icono_notificaciones_insta"));
         menuPanel.add(Box.createVerticalStrut(4));
-        menuPanel.add(crearItemMenuSidebar("👤 Perfil", "PERFIL"));
+        menuPanel.add(crearItemMenuSidebar("Perfil", "PERFIL", "icono_perfil_insta"));
         menuPanel.add(Box.createVerticalStrut(4));
-        menuPanel.add(crearItemMenuSidebar("⚙️ Configuración", "EDIT_PROFILE"));
+        menuPanel.add(crearItemMenuSidebar("Configuración", "EDIT_PROFILE", "icono_ajustes_insta"));
 
         sidebar.add(menuPanel, BorderLayout.CENTER);
 
+        // Sección Inferior: Usuario Logueado + Cerrar Sesión
         JPanel bottomPanel = new JPanel();
         bottomPanel.setLayout(new BoxLayout(bottomPanel, BoxLayout.Y_AXIS));
         bottomPanel.setOpaque(false);
@@ -494,7 +530,6 @@ public class InstaPanel extends JPanel {
         lblUser.setFont(new Font("Segoe UI", Font.BOLD, 13));
         lblUser.setForeground(TEXT_WHITE);
 
-        // CORRECCIÓN: Se utiliza isEsAdmin() que corresponde a tu clase Usuario
         String rol = usuarioActual.isEsAdmin() ? "Administrador" : "En línea";
         JLabel lblRol = new JLabel(rol);
         lblRol.setFont(new Font("Segoe UI", Font.PLAIN, 11));
@@ -540,7 +575,9 @@ public class InstaPanel extends JPanel {
         return sidebar;
     }
 
-    private JButton crearItemMenuSidebar(String texto, String cardName) {
+    private JButton crearItemMenuSidebar(String texto, String cardName, String nombreIcono) {
+        ImageIcon iconImg = cargarIconoInsta(nombreIcono, 22, 22);
+
         JButton btn = new JButton() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -558,9 +595,15 @@ public class InstaPanel extends JPanel {
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
                 }
 
+                int xText = 16;
+                if (iconImg != null) {
+                    g2.drawImage(iconImg.getImage(), 14, (getHeight() - 22) / 2, null);
+                    xText = 46;
+                }
+
                 g2.setColor(isActive ? TEXT_WHITE : TEXT_MUTED);
                 g2.setFont(new Font("Segoe UI", isActive ? Font.BOLD : Font.PLAIN, 13));
-                g2.drawString(texto, 16, (getHeight() + g2.getFontMetrics().getAscent() - 6) / 2);
+                g2.drawString(texto, xText, (getHeight() + g2.getFontMetrics().getAscent() - 6) / 2);
                 g2.dispose();
             }
         };
@@ -585,7 +628,7 @@ public class InstaPanel extends JPanel {
     }
 
     // =========================================================================
-    // 1. TIMELINE & HISTORIAS (STORIES)
+    // 1. TIMELINE & HISTORIAS
     // =========================================================================
     private JPanel pnlStoriesBar;
     private JPanel pnlFeedCards;
@@ -723,7 +766,7 @@ public class InstaPanel extends JPanel {
         ));
         card.setPreferredSize(new Dimension(500, p.getRutaImagen() != null ? 530 : 260));
 
-        // 1. Cabecera del post (Avatar, Nombre, Ubicación y Fecha)
+        // Cabecera del post
         JPanel header = new JPanel(new BorderLayout(10, 0));
         header.setOpaque(false);
         header.add(crearAvatarCircular(p.getAutor(), 40, true, null), BorderLayout.WEST);
@@ -751,7 +794,7 @@ public class InstaPanel extends JPanel {
         header.add(lblFecha, BorderLayout.EAST);
         card.add(header, BorderLayout.NORTH);
 
-        // 2. Imagen principal del post (si existe)
+        // Imagen principal del post (si existe)
         if (p.getRutaImagen() != null && new File(p.getRutaImagen()).exists()) {
             ImageIcon icon = new ImageIcon(p.getRutaImagen());
             Image scaled = icon.getImage().getScaledInstance(468, 270, Image.SCALE_SMOOTH);
@@ -760,12 +803,11 @@ public class InstaPanel extends JPanel {
             card.add(lblImg, BorderLayout.CENTER);
         }
 
-        // 3. Pie de publicación (Interacciones, Texto, Hashtags y Sticker)
+        // Pie de publicación (Interacciones, Texto, Hashtags y Sticker)
         JPanel footer = new JPanel();
         footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
         footer.setOpaque(false);
 
-        // Barra de botones: Like, Comentar, Compartir
         JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 6));
         actionRow.setOpaque(false);
 
@@ -809,7 +851,6 @@ public class InstaPanel extends JPanel {
         footer.add(lblLikes);
         footer.add(Box.createVerticalStrut(4));
 
-        // Formatear #hashtags en azul y @menciones en blanco
         String texto = p.getContenido().replaceAll("(#[\\w]+)", "<span style='color:#0095f6;'>$1</span>");
         texto = texto.replaceAll("(@[\\w]+)", "<span style='color:#ffffff; font-weight:bold;'>$1</span>");
 
@@ -818,7 +859,7 @@ public class InstaPanel extends JPanel {
         lblContenido.setBorder(new EmptyBorder(2, 6, 2, 6));
         footer.add(lblContenido);
 
-        // Renderizado del Sticker adjunto (como archivo de imagen o texto)
+        // Renderizado del Sticker adjunto (PNG de sticker pack o texto)
         if (p.getSticker() != null && !p.getSticker().isEmpty()) {
             File fSt = new File(p.getSticker());
             if (fSt.exists()) {
@@ -929,12 +970,13 @@ public class InstaPanel extends JPanel {
     }
 
     // =========================================================================
-    // 3. INBOX / DIRECT CONVERSACIONES
+    // 3. INBOX / DIRECT CONVERSIONES (CON IMÁGENES DE STICKERS)
     // =========================================================================
     private JPanel crearVistaInbox() {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(BG_MAIN);
 
+        // Panel Izquierdo: Lista de Contactos
         JPanel leftList = new JPanel(new BorderLayout());
         leftList.setBackground(BG_SIDEBAR);
         leftList.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, BORDER_COLOR));
@@ -965,6 +1007,7 @@ public class InstaPanel extends JPanel {
         leftList.add(scrollConv, BorderLayout.CENTER);
         root.add(leftList, BorderLayout.WEST);
 
+        // Panel Derecho: Chat Stream
         JPanel rightChat = new JPanel(new BorderLayout());
         rightChat.setBackground(BG_MAIN);
 
@@ -1051,15 +1094,74 @@ public class InstaPanel extends JPanel {
             recargarChat();
         });
 
-       btnSticker.addActionListener(e -> {
-        mostrarSelectorStickers(stickerSeleccionado -> {
-            InstaFileManager.enviarMensaje(usuarioActual.getUsername(), chatUsuarioSeleccionado, stickerSeleccionado, MensajeInbox.Tipo.STICKER);
-            recargarChat();
+        // Selector visual en cuadrícula de Stickers
+        btnSticker.addActionListener(e -> {
+            mostrarSelectorStickers(stickerSeleccionado -> {
+                InstaFileManager.enviarMensaje(usuarioActual.getUsername(), chatUsuarioSeleccionado, stickerSeleccionado, MensajeInbox.Tipo.STICKER);
+                recargarChat();
             });
         });
 
         recargarChat();
         return root;
+    }
+
+    private void mostrarSelectorStickers(java.util.function.Consumer<String> alSeleccionarSticker) {
+        JDialog dlg = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Sticker Pack", true);
+        dlg.setSize(380, 320);
+        dlg.setLocationRelativeTo(this);
+        dlg.setLayout(new BorderLayout());
+        dlg.getContentPane().setBackground(BG_CARD);
+
+        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
+        header.setOpaque(false);
+        JLabel lbl = new JLabel("✨ Elige un Sticker");
+        lbl.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        lbl.setForeground(TEXT_WHITE);
+        header.add(lbl);
+        dlg.add(header, BorderLayout.NORTH);
+
+        JPanel grid = new JPanel(new GridLayout(0, 3, 10, 10));
+        grid.setBackground(BG_CARD);
+        grid.setBorder(new EmptyBorder(10, 15, 15, 15));
+
+        Lista<String> stickers = InstaFileManager.cargarStickers(usuarioActual.getUsername());
+        Nodo<String> n = stickers.getHead();
+
+        while (n != null) {
+            String rutaOTexto = n.getDato();
+            JButton btn = new JButton();
+            btn.setBackground(BG_INPUT);
+            btn.setBorder(BorderFactory.createLineBorder(BORDER_COLOR, 1, true));
+            btn.setFocusPainted(false);
+            btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            btn.setPreferredSize(new Dimension(95, 95));
+
+            File f = new File(rutaOTexto);
+            if (f.exists()) {
+                ImageIcon icon = new ImageIcon(f.getAbsolutePath());
+                Image img = icon.getImage().getScaledInstance(70, 70, Image.SCALE_SMOOTH);
+                btn.setIcon(new ImageIcon(img));
+            } else {
+                btn.setText(rutaOTexto);
+                btn.setForeground(TEXT_WHITE);
+            }
+
+            btn.addActionListener(e -> {
+                alSeleccionarSticker.accept(rutaOTexto);
+                dlg.dispose();
+            });
+
+            grid.add(btn);
+            n = n.getSiguiente();
+        }
+
+        JScrollPane sc = new JScrollPane(grid);
+        sc.setBorder(null);
+        sc.getVerticalScrollBar().setUnitIncrement(14);
+        dlg.add(sc, BorderLayout.CENTER);
+
+        dlg.setVisible(true);
     }
 
     private synchronized void recargarChat() {
@@ -1068,14 +1170,12 @@ public class InstaPanel extends JPanel {
 
         String query = (txtBuscarChats != null) ? txtBuscarChats.getText().trim().toLowerCase() : "";
 
-        // 1. Cargar lista de contactos / conversaciones en el panel izquierdo
         Lista<Usuario> todos = InstaFileManager.cargarUsuariosInsta();
         Nodo<Usuario> nu = todos.getHead();
         while (nu != null) {
             Usuario uObj = nu.getDato();
             String u = uObj.getUsername();
             if (!u.equalsIgnoreCase(usuarioActual.getUsername())) {
-                // Filtrar según el buscador de mensajes
                 if (query.isEmpty() || u.toLowerCase().contains(query) || uObj.getNombreCompleto().toLowerCase().contains(query)) {
                     boolean isSelected = u.equalsIgnoreCase(chatUsuarioSeleccionado);
                     JPanel item = new JPanel(new BorderLayout(10, 0));
@@ -1127,7 +1227,6 @@ public class InstaPanel extends JPanel {
             nu = nu.getSiguiente();
         }
 
-        // 2. Cargar historial de mensajes de la conversación activa
         pnlChatStream.removeAll();
         Lista<MensajeInbox> conversacion = InstaFileManager.obtenerConversacion(usuarioActual.getUsername(), chatUsuarioSeleccionado);
         SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a");
@@ -1141,13 +1240,11 @@ public class InstaPanel extends JPanel {
             JPanel row = new JPanel(new FlowLayout(esMio ? FlowLayout.RIGHT : FlowLayout.LEFT, 0, 0));
             row.setOpaque(false);
 
-            // Verificar si el mensaje es un archivo de imagen de Sticker
             boolean esStickerArchivo = (m.getTipo() == MensajeInbox.Tipo.STICKER) && new File(m.getTexto()).exists();
 
             JPanel bubble = new JPanel(new BorderLayout(0, 4)) {
                 @Override
                 protected void paintComponent(Graphics g) {
-                    // Si es un sticker con imagen PNG, no pintamos fondo de burbuja para que luzca transparente
                     if (!esStickerArchivo) {
                         Graphics2D g2 = (Graphics2D) g.create();
                         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -1167,7 +1264,6 @@ public class InstaPanel extends JPanel {
             bubble.setBorder(new EmptyBorder(8, 12, 8, 12));
 
             if (esStickerArchivo) {
-                // Renderizado de Imagen de Sticker real
                 File fSticker = new File(m.getTexto());
                 ImageIcon ic = new ImageIcon(fSticker.getAbsolutePath());
                 Image img = ic.getImage().getScaledInstance(95, 95, Image.SCALE_SMOOTH);
@@ -1180,12 +1276,10 @@ public class InstaPanel extends JPanel {
                 bubble.add(lblStickerImg, BorderLayout.CENTER);
                 bubble.add(lblHora, BorderLayout.SOUTH);
             } else if (m.getTipo() == MensajeInbox.Tipo.STICKER) {
-                // Sticker en texto / emoji
                 JLabel lblMsg = new JLabel("<html><body style='color:#ffffff; font-size:13px; font-family:Segoe UI;'>"
                         + "🌟 <b>[Sticker]</b> " + m.getTexto() + "<br><span style='font-size:9px; color:#cbd5e1;'>" + hora + "</span></body></html>");
                 bubble.add(lblMsg, BorderLayout.CENTER);
             } else {
-                // Mensaje de texto normal
                 JLabel lblMsg = new JLabel("<html><body style='max-width:320px; color:#ffffff; font-size:12px; font-family:Segoe UI;'>"
                         + m.getTexto() + "<br><span style='font-size:9px; color:#cbd5e1;'>" + hora + "</span></body></html>");
                 bubble.add(lblMsg, BorderLayout.CENTER);
@@ -1264,8 +1358,15 @@ public class InstaPanel extends JPanel {
         JComboBox<String> cbCarpetas = new JComboBox<>(carpetas);
         estilizarComboBox(cbCarpetas);
 
-        JComboBox<String> cbSticker = new JComboBox<>(new String[]{"Sticker: Ninguno", "😊 Feliz", "😢 Triste", "❤️ Corazón", "😂 Risa", "👏 Aplauso"});
-        estilizarComboBox(cbSticker);
+        final String[] stickerSeleccionado = {null};
+        JButton btnElegirSticker = crearBotonSecundario("🌟 Seleccionar Sticker (Pack)");
+        btnElegirSticker.addActionListener(e -> {
+            mostrarSelectorStickers(st -> {
+                stickerSeleccionado[0] = st;
+                File f = new File(st);
+                btnElegirSticker.setText("✅ Sticker: " + (f.exists() ? f.getName() : st));
+            });
+        });
 
         JCheckBox chkHistoria = new JCheckBox("Subir como Historia (Story 24h)");
         chkHistoria.setForeground(TEXT_WHITE);
@@ -1278,8 +1379,7 @@ public class InstaPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "La descripción no puede exceder 220 caracteres.");
                 return;
             }
-            String st = cbSticker.getSelectedIndex() > 0 ? (String) cbSticker.getSelectedItem() : null;
-            Publicacion p = new Publicacion(usuarioActual.getUsername(), txt, rutaSel[0], st, chkHistoria.isSelected());
+            Publicacion p = new Publicacion(usuarioActual.getUsername(), txt, rutaSel[0], stickerSeleccionado[0], chkHistoria.isSelected());
             Lista<Publicacion> posts = InstaFileManager.cargarPublicaciones(usuarioActual.getUsername());
             posts.agregar(p);
             InstaFileManager.guardarPublicaciones(usuarioActual.getUsername(), posts);
@@ -1287,7 +1387,9 @@ public class InstaPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "¡Publicación subida con éxito!");
             txtDesc.setText("");
             rutaSel[0] = null;
+            stickerSeleccionado[0] = null;
             btnImg.setText("📁 Seleccionar imagen (.jpg / .png)");
+            btnElegirSticker.setText("🌟 Seleccionar Sticker (Pack)");
             activeCard[0] = "TIMELINE";
             appCardLayout.show(appMainContent, "TIMELINE");
             recargarTimeline();
@@ -1301,7 +1403,7 @@ public class InstaPanel extends JPanel {
         card.add(txtDesc);
         card.add(lblCarpetaDest);
         card.add(cbCarpetas);
-        card.add(cbSticker);
+        card.add(btnElegirSticker);
         card.add(chkHistoria);
         card.add(btnPub);
 
@@ -1561,66 +1663,9 @@ public class InstaPanel extends JPanel {
         root.add(card);
         return root;
     }
-    private void mostrarSelectorStickers(java.util.function.Consumer<String> alSeleccionarSticker) {
-        JDialog dlg = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Sticker Pack", true);
-        dlg.setSize(380, 320);
-        dlg.setLocationRelativeTo(this);
-        dlg.setLayout(new BorderLayout());
-        dlg.getContentPane().setBackground(BG_CARD);
-
-        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
-        header.setOpaque(false);
-        JLabel lbl = new JLabel("✨ Elige un Sticker");
-        lbl.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        lbl.setForeground(TEXT_WHITE);
-        header.add(lbl);
-        dlg.add(header, BorderLayout.NORTH);
-
-        JPanel grid = new JPanel(new GridLayout(0, 3, 10, 10));
-        grid.setBackground(BG_CARD);
-        grid.setBorder(new EmptyBorder(10, 15, 15, 15));
-
-        Lista<String> stickers = InstaFileManager.cargarStickers(usuarioActual.getUsername());
-        Nodo<String> n = stickers.getHead();
-
-        while (n != null) {
-            String rutaOTexto = n.getDato();
-            JButton btn = new JButton();
-            btn.setBackground(BG_INPUT);
-            btn.setBorder(BorderFactory.createLineBorder(BORDER_COLOR, 1, true));
-            btn.setFocusPainted(false);
-            btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            btn.setPreferredSize(new Dimension(95, 95));
-
-            File f = new File(rutaOTexto);
-            if (f.exists()) {
-                ImageIcon icon = new ImageIcon(f.getAbsolutePath());
-                Image img = icon.getImage().getScaledInstance(70, 70, Image.SCALE_SMOOTH);
-                btn.setIcon(new ImageIcon(img));
-            } else {
-                btn.setText(rutaOTexto);
-                btn.setForeground(TEXT_WHITE);
-            }
-
-            btn.addActionListener(e -> {
-                alSeleccionarSticker.accept(rutaOTexto);
-                dlg.dispose();
-            });
-
-            grid.add(btn);
-            n = n.getSiguiente();
-        }
-
-        JScrollPane sc = new JScrollPane(grid);
-        sc.setBorder(null);
-        sc.getVerticalScrollBar().setUnitIncrement(14);
-        dlg.add(sc, BorderLayout.CENTER);
-
-        dlg.setVisible(true);
-    }
 
     // =========================================================================
-    // GENERADOR DE AVATARES CIRCULARES (CON FOTO O DEGRADADO ELEGANTE)
+    // GENERADOR DE AVATARES CIRCULARES CON FOTO O DEGRADADO
     // =========================================================================
     public static JComponent crearAvatarCircular(String username, int diametro, boolean tieneStoryRing, String badgeOverlay) {
         JComponent comp = new JComponent() {
@@ -1632,7 +1677,6 @@ public class InstaPanel extends JPanel {
                 int offset = tieneStoryRing ? 3 : 0;
                 int size = diametro - (offset * 2);
 
-                // Anillo degradado de historias
                 if (tieneStoryRing) {
                     GradientPaint gp = new GradientPaint(0, 0, G_ORANGE, diametro, diametro, G_PURPLE);
                     g2.setPaint(gp);
@@ -1640,7 +1684,6 @@ public class InstaPanel extends JPanel {
                     g2.drawOval(1, 1, diametro - 3, diametro - 3);
                 }
 
-                // Verificar si el usuario tiene foto de perfil física
                 Usuario u = InstaFileManager.buscarUsuario(username);
                 boolean fotoPintada = false;
 
@@ -1659,7 +1702,6 @@ public class InstaPanel extends JPanel {
                     }
                 }
 
-                // Si no tiene foto de archivo, generar degradado dinámico con la inicial
                 if (!fotoPintada) {
                     int hash = Math.abs((username != null ? username : "user").hashCode());
                     Color[] avatarColors = {
@@ -1683,7 +1725,6 @@ public class InstaPanel extends JPanel {
                     g2.drawString(letter, tx, ty);
                 }
 
-                // Badge '+' para historias
                 if (badgeOverlay != null) {
                     g2.setColor(IG_BLUE);
                     g2.fillOval(diametro - 16, diametro - 16, 15, 15);

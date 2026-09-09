@@ -5,14 +5,14 @@
  */
 package Insta;
 
-/**
- *
- * @author David Suazo Palao
- */
 import java.io.Serializable;
 import java.util.Date;
 import Windows.Lista;
-public class Publicacion implements Serializable{
+
+/**
+ * @author David Suazo Palao
+ */
+public class Publicacion implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private String id;

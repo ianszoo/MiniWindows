@@ -5,13 +5,13 @@
  */
 package Insta;
 
-/**
- *
- * @author David Suazo Palao
- */
 import java.io.Serializable;
 import java.util.Date;
-public class MensajeInbox implements Serializable{
+
+/**
+ * @author David Suazo Palao
+ */
+public class MensajeInbox implements Serializable {
     private static final long serialVersionUID = 1L;
 
     public enum Tipo { TEXTO, STICKER }
@@ -32,26 +32,11 @@ public class MensajeInbox implements Serializable{
         this.leido = false;
     }
 
-    public String getEmisor() {
-        return emisor; 
-    }
-    public String getReceptor() {
-        return receptor; 
-    }
-    public Date getFecha() {
-        return fecha; 
-    }
-    public String getTexto() {
-        return texto; 
-    }
-    public Tipo getTipo() {
-        return tipo; 
-    }
-    public boolean isLeido() {
-        return leido; 
-    }
-    public void setLeido(boolean leido) {
-        this.leido = leido; 
-    }
-    
+    public String getEmisor() { return emisor; }
+    public String getReceptor() { return receptor; }
+    public Date getFecha() { return fecha; }
+    public String getTexto() { return texto; }
+    public Tipo getTipo() { return tipo; }
+    public boolean isLeido() { return leido; }
+    public void setLeido(boolean leido) { this.leido = leido; }
 }

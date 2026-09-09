@@ -9,17 +9,15 @@ import java.io.Serializable;
 import java.util.Date;
 
 /**
- *
  * @author Ian Suazo Palao
  */
-public class Usuario implements Serializable{
+public class Usuario implements Serializable {
     private static final long serialVersionUID = 1L;
     private String username;
     private String pass;
     private boolean esAdmin;
     private Date fechaCreacion;
 
-    // Campos solicitados para INSTA+
     private String nombreCompleto;
     private char genero; // 'M' o 'F'
     private int edad;
@@ -75,6 +73,4 @@ public class Usuario implements Serializable{
         }
         return false;
     }
-    
-    
 }
