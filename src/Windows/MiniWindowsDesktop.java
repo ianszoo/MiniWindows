@@ -178,7 +178,7 @@ public class MiniWindowsDesktop extends JFrame {
         int y = 20;
         int gap = 95;
 
-        desktopPane.add(crearIconoEscritorio("archivos_icono", "Este equipo", x, y, () -> abrirExplorador()));
+        desktopPane.add(crearIconoEscritorio("archivos_icono", "Este equipo", x, y, () -> abrirExplorador(null)));
         desktopPane.add(crearIconoEscritorio("word_icon", "Editor Word", x, y += gap, () -> abrirEditor()));
         desktopPane.add(crearIconoEscritorio("imagenes_icono", "Visor Fotos", x, y += gap, () -> abrirVisor()));
         desktopPane.add(crearIconoEscritorio("musica_icono", "Reproductor", x, y += gap, () -> abrirReproductor()));
@@ -256,7 +256,7 @@ public class MiniWindowsDesktop extends JFrame {
         colLeft.setOpaque(false);
 
         colLeft.add(crearBotonMenu(null, usuarioActual.getUsername() + (usuarioActual.isEsAdmin() ? " (Admin)" : ""), null, true));
-        colLeft.add(crearBotonMenu("archivos_icono", "Explorador", () -> abrirExplorador(), false));
+        colLeft.add(crearBotonMenu("archivos_icono", "Explorador", () -> abrirExplorador(null), false));
         colLeft.add(crearBotonMenu("word_icon", "Editor Word", () -> abrirEditor(), false));
         colLeft.add(crearBotonMenu("imagenes_icono", "Visor Fotos", () -> abrirVisor(), false));
         colLeft.add(crearBotonMenu("cmd_icono", "Consola CMD", () -> abrirCMD(), false));
@@ -272,9 +272,9 @@ public class MiniWindowsDesktop extends JFrame {
         lblAccesos.setFont(new Font("Segoe UI", Font.BOLD, 12));
         colRight.add(lblAccesos);
 
-        colRight.add(crearBotonMenu("archivos_icono", "Documentos", () -> abrirExplorador(), false));
+        colRight.add(crearBotonMenu("archivos_icono", "Documentos", () -> abrirExplorador(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos")), false));
         colRight.add(crearBotonMenu("imagenes_icono", "Imágenes", () -> abrirVisor(), false));
-        colRight.add(crearBotonMenu("musica_icono", "Música", () -> abrirReproductor(), false));
+        colRight.add(crearBotonMenu("musica_icono", "Música", () -> abrirExplorador(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Música")), false));
 
         grid.add(colLeft);
         grid.add(colRight);
@@ -364,7 +364,7 @@ public class MiniWindowsDesktop extends JFrame {
         JPanel center = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 4));
         center.setOpaque(false);
 
-        center.add(crearBotonBarra("archivos_icono", () -> abrirExplorador(), "Explorador de Archivos"));
+        center.add(crearBotonBarra("archivos_icono", () -> abrirExplorador(null), "Explorador de Archivos"));
         center.add(crearBotonBarra("word_icon", () -> abrirEditor(), "Editor de Texto"));
         center.add(crearBotonBarra("imagenes_icono", () -> abrirVisor(), "Visor de Fotos"));
         center.add(crearBotonBarra("musica_icono", () -> abrirReproductor(), "Reproductor de Música"));
@@ -426,23 +426,55 @@ public class MiniWindowsDesktop extends JFrame {
         SwingUtilities.invokeLater(() -> new WindowsLoginFrame().setVisible(true));
     }
 
-    private void abrirExplorador() { gestionarVentana("EXPLORADOR", "Explorador de Archivos (Z:\\)", crearExploradorReal(), 880, 560); }
+    private void abrirExplorador(File carpetaInicial) { 
+        gestionarVentana("EXPLORADOR", "Explorador de Archivos (Z:\\)", crearExploradorReal(carpetaInicial), 880, 560); 
+    }
     private void abrirEditor() { gestionarVentana("EDITOR", "Bloc de Notas - Editor con Formato", crearEditorReal(), 860, 560); }
-    private void abrirVisor() { gestionarVentana("VISOR", "Visor de Imágenes", crearVisorReal(), 760, 520); }
+    private void abrirVisor() { gestionarVentana("VISOR", "Visor de Imágenes", crearVisorReal(), 880, 600); }
     private void abrirCMD() { gestionarVentana("CMD", "Símbolo del Sistema (CMD)", crearCmdReal(), 720, 440); }
     private void abrirReproductor() { gestionarVentana("REPRODUCTOR", "Media Player", crearReproductorReal(), 920, 580); }
     private void abrirInsta() { gestionarVentana("INSTA", "INSTA+ - Red Social Integrada", new InstaPanel(usuarioActual), 920, 620); }
 
+    // Utilidad: Crea botones con estilo oscuro nativo sin fondos blancos en hover
+    private JButton crearBotonPersonalizado(String texto, Color bgBase, Color bgHover) {
+        JButton btn = new JButton(texto) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                if (getModel().isPressed()) {
+                    g2.setColor(bgBase.darker());
+                } else if (getModel().isRollover()) {
+                    g2.setColor(bgHover);
+                } else {
+                    g2.setColor(bgBase);
+                }
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        btn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        btn.setForeground(Color.WHITE);
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
+        btn.setFocusPainted(false);
+        btn.setOpaque(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setBorder(new EmptyBorder(6, 12, 6, 12));
+        return btn;
+    }
+
     // =========================================================================
     // 1. EXPLORADOR DE ARCHIVOS
     // =========================================================================
-    private JPanel crearExploradorReal() {
+    private JPanel crearExploradorReal(File carpetaInicial) {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(new Color(248, 250, 252));
 
-        File raizUsuario = usuarioActual.isEsAdmin() 
-                ? new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA)
-                : new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername());
+        File raizUsuario = (carpetaInicial != null && carpetaInicial.exists()) 
+                ? carpetaInicial 
+                : (usuarioActual.isEsAdmin() ? new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA) : new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername()));
 
         DefaultMutableTreeNode raizNodo = new DefaultMutableTreeNode(raizUsuario.getName());
         DefaultTreeModel modeloArbol = new DefaultTreeModel(raizNodo);
@@ -488,9 +520,9 @@ public class MiniWindowsDesktop extends JFrame {
         toolbar.setBackground(Color.WHITE);
         toolbar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(226, 232, 240)));
 
-        JButton btnOrganizar = new JButton("⚡ Organizar (Hilo)");
-        JButton btnCrear = new JButton("➕ Nueva Carpeta");
-        JButton btnEliminar = new JButton("❌ Eliminar");
+        JButton btnOrganizar = new JButton("Organizar (Hilo)");
+        JButton btnCrear = new JButton("Nueva Carpeta");
+        JButton btnEliminar = new JButton("Eliminar");
 
         btnOrganizar.setBackground(new Color(238, 242, 255));
         btnOrganizar.setForeground(new Color(79, 70, 229));
@@ -582,13 +614,13 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 2. EDITOR DE TEXTO CON FORMATO (MODERNO: SOLO CAMBIA EL TEXTO SELECCIONADO)
+    // 2. EDITOR DE TEXTO CON FORMATO (COMBOS OSCUROS CON ALTO CONTRASTE)
     // =========================================================================
     private JPanel crearEditorReal() {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(new Color(32, 32, 32));
 
-        // 1. LIENZO DEL EDITOR OSCURO CON MÁRGENES
+        // 1. LIENZO DEL EDITOR
         JTextPane textPane = new JTextPane();
         textPane.setFont(new Font("Consolas", Font.PLAIN, 15));
         textPane.setBackground(new Color(30, 30, 30));
@@ -598,7 +630,6 @@ public class MiniWindowsDesktop extends JFrame {
         textPane.setSelectedTextColor(Color.WHITE);
         textPane.setBorder(new EmptyBorder(15, 20, 15, 20));
 
-        // Formato inicial por defecto en los atributos de entrada
         SimpleAttributeSet defaultAttrs = new SimpleAttributeSet();
         StyleConstants.setFontFamily(defaultAttrs, "Consolas");
         StyleConstants.setFontSize(defaultAttrs, 15);
@@ -622,28 +653,25 @@ public class MiniWindowsDesktop extends JFrame {
                 new EmptyBorder(6, 10, 6, 10)
         ));
 
-        // Selector de Fuentes del Sistema
+        // Selector de Fuentes del Sistema (Fondo Gris Oscuro y Texto Blanco)
         String[] fuentes = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
         JComboBox<String> cbFuentes = new JComboBox<>(fuentes);
         cbFuentes.setSelectedItem("Consolas");
         cbFuentes.setMaximumSize(new Dimension(160, 28));
-        cbFuentes.setBackground(new Color(48, 48, 48));
-        cbFuentes.setForeground(Color.WHITE);
+        estilizarComboBoxOscuro(cbFuentes);
 
-        // Selector de Tamaños
+        // Selector de Tamaños (Fondo Gris Oscuro y Texto Blanco)
         Integer[] tamanos = {10, 12, 14, 16, 18, 20, 24, 28, 32, 40};
         JComboBox<Integer> cbTamanos = new JComboBox<>(tamanos);
         cbTamanos.setSelectedItem(15);
-        cbTamanos.setMaximumSize(new Dimension(60, 28));
-        cbTamanos.setBackground(new Color(48, 48, 48));
-        cbTamanos.setForeground(Color.WHITE);
+        cbTamanos.setMaximumSize(new Dimension(65, 28));
+        estilizarComboBoxOscuro(cbTamanos);
 
         final Color[] colorActual = {new Color(240, 240, 240)};
         final boolean[] isBold = {false};
         final boolean[] isItalic = {false};
         final boolean[] isUnderline = {false};
 
-        // Función para aplicar formato únicamente al texto seleccionado
         Runnable actualizarFormato = () -> {
             String f = (String) cbFuentes.getSelectedItem();
             Integer t = (Integer) cbTamanos.getSelectedItem();
@@ -652,7 +680,7 @@ public class MiniWindowsDesktop extends JFrame {
             }
         };
 
-        JButton btnColor = crearBotonEditor("🎨 Color");
+        JButton btnColor = crearBotonPersonalizado("Color", new Color(48, 48, 54), new Color(68, 70, 80));
         btnColor.addActionListener(e -> {
             Color nuevo = JColorChooser.showDialog(this, "Selecciona Color de Texto", colorActual[0]);
             if (nuevo != null) {
@@ -662,47 +690,43 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
-        // Botones de estilo
-        JButton btnBold = crearBotonEditor("B");
+        JButton btnBold = crearBotonPersonalizado("B", new Color(48, 48, 54), new Color(68, 70, 80));
         btnBold.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        btnBold.setPreferredSize(new Dimension(32, 28));
+        btnBold.setPreferredSize(new Dimension(34, 28));
 
-        JButton btnItalic = crearBotonEditor("I");
+        JButton btnItalic = crearBotonPersonalizado("I", new Color(48, 48, 54), new Color(68, 70, 80));
         btnItalic.setFont(new Font("Segoe UI", Font.ITALIC, 13));
-        btnItalic.setPreferredSize(new Dimension(32, 28));
+        btnItalic.setPreferredSize(new Dimension(34, 28));
 
-        JButton btnUnderline = crearBotonEditor("U");
+        JButton btnUnderline = crearBotonPersonalizado("U", new Color(48, 48, 54), new Color(68, 70, 80));
         btnUnderline.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        btnUnderline.setPreferredSize(new Dimension(32, 28));
+        btnUnderline.setPreferredSize(new Dimension(34, 28));
 
         btnBold.addActionListener(e -> {
             isBold[0] = !isBold[0];
-            btnBold.setBackground(isBold[0] ? new Color(70, 70, 70) : new Color(48, 48, 48));
+            btnBold.setBackground(isBold[0] ? new Color(75, 75, 85) : new Color(48, 48, 54));
             actualizarFormato.run();
         });
 
         btnItalic.addActionListener(e -> {
             isItalic[0] = !isItalic[0];
-            btnItalic.setBackground(isItalic[0] ? new Color(70, 70, 70) : new Color(48, 48, 48));
+            btnItalic.setBackground(isItalic[0] ? new Color(75, 75, 85) : new Color(48, 48, 54));
             actualizarFormato.run();
         });
 
         btnUnderline.addActionListener(e -> {
             isUnderline[0] = !isUnderline[0];
-            btnUnderline.setBackground(isUnderline[0] ? new Color(70, 70, 70) : new Color(48, 48, 48));
+            btnUnderline.setBackground(isUnderline[0] ? new Color(75, 75, 85) : new Color(48, 48, 54));
             actualizarFormato.run();
         });
 
-        // Eventos automáticos al cambiar fuente o tamaño
         cbFuentes.addActionListener(e -> actualizarFormato.run());
         cbTamanos.addActionListener(e -> actualizarFormato.run());
 
-        JButton btnAplicar = crearBotonEditor("Aplicar");
-        btnAplicar.setBackground(ACCENT_BLUE);
-        btnAplicar.setForeground(Color.WHITE);
+        JButton btnAplicar = crearBotonPersonalizado("Aplicar", ACCENT_BLUE, new Color(25, 145, 255));
         btnAplicar.addActionListener(e -> actualizarFormato.run());
 
-        JButton btnGuardar = crearBotonEditor(" Guardar (.sop)");
+        JButton btnGuardar = crearBotonPersonalizado("Guardar (.sop)", new Color(48, 48, 54), new Color(68, 70, 80));
         btnGuardar.addActionListener(e -> {
             JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos"));
             if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -717,7 +741,7 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
-        JButton btnAbrir = crearBotonEditor(" Abrir");
+        JButton btnAbrir = crearBotonPersonalizado("Abrir", new Color(48, 48, 54), new Color(68, 70, 80));
         btnAbrir.addActionListener(e -> {
             JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos"));
             if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -739,13 +763,13 @@ public class MiniWindowsDesktop extends JFrame {
         ribbon.add(lblTam);
         ribbon.add(cbTamanos);
 
-        ribbon.add(Box.createHorizontalStrut(6));
+        ribbon.add(Box.createHorizontalStrut(8));
         ribbon.add(btnColor);
         ribbon.add(Box.createHorizontalStrut(4));
         ribbon.add(btnBold);
         ribbon.add(btnItalic);
         ribbon.add(btnUnderline);
-        ribbon.add(Box.createHorizontalStrut(4));
+        ribbon.add(Box.createHorizontalStrut(6));
         ribbon.add(btnAplicar);
         ribbon.addSeparator();
         ribbon.add(btnAbrir);
@@ -790,20 +814,56 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    private JButton crearBotonEditor(String texto) {
-        JButton btn = new JButton(texto);
-        btn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        btn.setForeground(Color.WHITE);
-        btn.setBackground(new Color(48, 48, 48));
-        btn.setContentAreaFilled(true);
-        btn.setBorderPainted(false);
-        btn.setFocusPainted(false);
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btn.setBorder(new EmptyBorder(5, 10, 5, 10));
-        return btn;
+    // Estiliza un JComboBox para forzar fondo oscuro y texto blanco (Sin cuadro blanco)
+    private void estilizarComboBoxOscuro(JComboBox<?> cb) {
+        cb.setBackground(new Color(38, 38, 42));
+        cb.setForeground(Color.WHITE);
+        cb.setOpaque(false);
+        cb.setBorder(BorderFactory.createLineBorder(new Color(65, 65, 72), 1, true));
+        cb.setUI(new javax.swing.plaf.basic.BasicComboBoxUI() {
+            @Override
+            protected JButton createArrowButton() {
+                JButton btn = new JButton("▼") {
+                    @Override
+                    protected void paintComponent(Graphics g) {
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        g2.setColor(new Color(38, 38, 42));
+                        g2.fillRect(0, 0, getWidth(), getHeight());
+                        g2.setColor(new Color(200, 200, 200));
+                        g2.setFont(new Font("Segoe UI", Font.PLAIN, 8));
+                        FontMetrics fm = g2.getFontMetrics();
+                        g2.drawString("▼", (getWidth() - fm.stringWidth("▼")) / 2, (getHeight() + fm.getAscent()) / 2 - 2);
+                        g2.dispose();
+                    }
+                };
+                btn.setContentAreaFilled(false);
+                btn.setBorderPainted(false);
+                btn.setFocusPainted(false);
+                btn.setOpaque(false);
+                return btn;
+            }
+
+            @Override
+            public void paintCurrentValueBackground(Graphics g, Rectangle bounds, boolean hasFocus) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setColor(new Color(38, 38, 42));
+                g2.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+                g2.dispose();
+            }
+        });
+
+        cb.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                JLabel lbl = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                lbl.setBackground(isSelected ? ACCENT_BLUE : new Color(30, 30, 34));
+                lbl.setForeground(Color.WHITE);
+                lbl.setBorder(new EmptyBorder(4, 8, 4, 8));
+                return lbl;
+            }
+        });
     }
 
-    // APLICA EXCLUSIVAMENTE AL TEXTO SELECCIONADO (O AL TEXTO QUE SE ESCRIBA DESPUÉS)
     private void aplicarFormatoTexto(JTextPane pane, String fuente, int tamano, Color color, boolean bold, boolean italic, boolean underline) {
         SimpleAttributeSet attrs = new SimpleAttributeSet();
         if (fuente != null) StyleConstants.setFontFamily(attrs, fuente);
@@ -817,11 +877,9 @@ public class MiniWindowsDesktop extends JFrame {
         int end = pane.getSelectionEnd();
         StyledDocument doc = pane.getStyledDocument();
 
-        // 1. SI HAY TEXTO SUBRAYADO/SELECCIONADO: Modifica únicamente ese fragmento
         if (start != end) {
             doc.setCharacterAttributes(start, end - start, attrs, false);
         } else {
-            // 2. SI NO HAY SELECCIÓN: NO toca el texto existente, solo configura el nuevo texto que se escriba
             MutableAttributeSet inputAttrs = (MutableAttributeSet) pane.getInputAttributes();
             inputAttrs.addAttributes(attrs);
             pane.setCharacterAttributes(attrs, false);
@@ -860,6 +918,7 @@ public class MiniWindowsDesktop extends JFrame {
         p.add(sur, BorderLayout.SOUTH);
 
         areaCmd.append("Microsoft Windows [Versión Simulada 2.0]\n(c) UNITEC Programación II. Todos los derechos reservados.\n\n");
+        areaCmd.append("Escribe 'help' para ver la lista de comandos disponibles.\n\n");
 
         input.addActionListener(e -> {
             String cmd = input.getText().trim();
@@ -871,6 +930,19 @@ public class MiniWindowsDesktop extends JFrame {
             String arg = partes.length > 1 ? partes[1].trim() : "";
 
             switch (comando) {
+                case "help":
+                    areaCmd.append("Comandos disponibles en Mini-Windows CMD:\n");
+                    areaCmd.append(String.format("  %-16s %s\n", "mkdir <nombre>", "Crea una nueva carpeta en la ruta actual."));
+                    areaCmd.append(String.format("  %-16s %s\n", "rm <nombre>", "Elimina un archivo o carpeta."));
+                    areaCmd.append(String.format("  %-16s %s\n", "cd <carpeta>", "Cambia al directorio indicado."));
+                    areaCmd.append(String.format("  %-16s %s\n", "cd..", "Regresa a la carpeta anterior."));
+                    areaCmd.append(String.format("  %-16s %s\n", "dir", "Lista todos los archivos y carpetas."));
+                    areaCmd.append(String.format("  %-16s %s\n", "date", "Muestra la fecha actual del sistema."));
+                    areaCmd.append(String.format("  %-16s %s\n", "time", "Muestra la hora actual del sistema."));
+                    areaCmd.append(String.format("  %-16s %s\n", "cls", "Limpia la pantalla de la consola."));
+                    areaCmd.append(String.format("  %-16s %s\n", "help", "Muestra esta ayuda con todos los comandos."));
+                    break;
+
                 case "mkdir":
                     if (!arg.isEmpty() && new File(dirActual[0], arg).mkdir()) areaCmd.append("Directorio creado exitosamente.\n");
                     else areaCmd.append("Error al crear carpeta.\n");
@@ -911,7 +983,7 @@ public class MiniWindowsDesktop extends JFrame {
                     areaCmd.setText("");
                     break;
                 default:
-                    areaCmd.append("'" + comando + "' no se reconoce como un comando interno.\n");
+                    areaCmd.append("'" + comando + "' no se reconoce como un comando interno. Escribe 'help' para ayuda.\n");
             }
             lblPrompt.setText(" " + dirActual[0].getPath().replace(SistemadeArchivos.RUTA_RAIZ_SIMULADA, "Z:") + "> ");
         });
@@ -920,68 +992,211 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 4. VISOR DE FOTOS
+    // 4. VISOR DE FOTOS (CON BOTÓN AGREGAR IMAGEN Y ELIMINAR SIN EMOJIS)
     // =========================================================================
     private JPanel crearVisorReal() {
         JPanel p = new JPanel(new BorderLayout());
-        p.setBackground(new Color(20, 20, 20));
-
-        JLabel lblImg = new JLabel("No hay imágenes en Mis Imágenes", SwingConstants.CENTER);
-        lblImg.setForeground(Color.LIGHT_GRAY);
-        p.add(lblImg, BorderLayout.CENTER);
+        p.setBackground(new Color(24, 24, 27));
 
         Lista<File> listaFotos = new Lista<>();
-        final int[] index = {0};
-        JLabel lblInfo = new JLabel(" 0 / 0 ");
-        lblInfo.setForeground(Color.WHITE);
+        final int[] indexActual = {0};
 
-        Runnable mostrar = () -> {
-            if (listaFotos.estaVacia()) return;
-            File f = listaFotos.obtener(index[0]);
-            ImageIcon icon = new ImageIcon(f.getAbsolutePath());
-            Image scaled = icon.getImage().getScaledInstance(Math.min(620, icon.getIconWidth()), Math.min(420, icon.getIconHeight()), Image.SCALE_SMOOTH);
-            lblImg.setIcon(new ImageIcon(scaled));
-            lblImg.setText("");
-            lblInfo.setText(" " + (index[0] + 1) + " / " + listaFotos.getSize() + " (" + f.getName() + ") ");
+        // 1. Barra Superior con Título y Botones
+        JPanel topBar = new JPanel(new BorderLayout());
+        topBar.setBackground(new Color(32, 32, 36));
+        topBar.setBorder(new EmptyBorder(8, 15, 8, 15));
+
+        JLabel lblTituloFoto = new JLabel("Sin imagen", SwingConstants.CENTER);
+        lblTituloFoto.setForeground(Color.WHITE);
+        lblTituloFoto.setFont(new Font("Segoe UI", Font.BOLD, 13));
+
+        JPanel panelBotonesTop = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        panelBotonesTop.setOpaque(false);
+
+        JButton btnAgregarFoto = crearBotonPersonalizado("Agregar Imagen...", new Color(45, 46, 52), new Color(65, 68, 78));
+        JButton btnEliminarFoto = crearBotonPersonalizado("Eliminar", new Color(60, 30, 35), new Color(180, 40, 50));
+
+        panelBotonesTop.add(btnAgregarFoto);
+        panelBotonesTop.add(btnEliminarFoto);
+
+        topBar.add(lblTituloFoto, BorderLayout.CENTER);
+        topBar.add(panelBotonesTop, BorderLayout.EAST);
+        p.add(topBar, BorderLayout.NORTH);
+
+        // 2. Lienzo Central
+        JPanel centerContainer = new JPanel(new BorderLayout());
+        centerContainer.setBackground(new Color(20, 20, 22));
+
+        JLabel lblImgPrincipal = new JLabel("", SwingConstants.CENTER);
+        centerContainer.add(lblImgPrincipal, BorderLayout.CENTER);
+
+        JButton btnAnt = crearBotonVectorial(1);
+        btnAnt.setPreferredSize(new Dimension(42, 42));
+        JButton btnSig = crearBotonVectorial(2);
+        btnSig.setPreferredSize(new Dimension(42, 42));
+
+        JPanel panelLeft = new JPanel(new GridBagLayout());
+        panelLeft.setOpaque(false);
+        panelLeft.setBorder(new EmptyBorder(0, 10, 0, 0));
+        panelLeft.add(btnAnt);
+
+        JPanel panelRight = new JPanel(new GridBagLayout());
+        panelRight.setOpaque(false);
+        panelRight.setBorder(new EmptyBorder(0, 0, 0, 10));
+        panelRight.add(btnSig);
+
+        centerContainer.add(panelLeft, BorderLayout.WEST);
+        centerContainer.add(panelRight, BorderLayout.EAST);
+        p.add(centerContainer, BorderLayout.CENTER);
+
+        // 3. Carrete de Miniaturas Inferior
+        JPanel stripThumbnails = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 8));
+        stripThumbnails.setBackground(new Color(16, 16, 18));
+
+        JScrollPane scrollStrip = new JScrollPane(stripThumbnails);
+        scrollStrip.setPreferredSize(new Dimension(0, 85));
+        scrollStrip.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(40, 40, 45)));
+        scrollStrip.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scrollStrip.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
+        p.add(scrollStrip, BorderLayout.SOUTH);
+
+        Runnable mostrarFotoActual = () -> {
+            if (listaFotos.estaVacia()) {
+                lblImgPrincipal.setIcon(null);
+                lblImgPrincipal.setText("No hay imágenes en la carpeta.");
+                lblTituloFoto.setText("Sin imágenes");
+                stripThumbnails.removeAll();
+                stripThumbnails.revalidate();
+                stripThumbnails.repaint();
+                return;
+            }
+
+            File imgFile = listaFotos.obtener(indexActual[0]);
+            lblTituloFoto.setText(imgFile.getName() + " (" + (indexActual[0] + 1) + " de " + listaFotos.getSize() + ")");
+
+            ImageIcon icon = new ImageIcon(imgFile.getAbsolutePath());
+            int maxW = Math.max(300, centerContainer.getWidth() - 120);
+            int maxH = Math.max(200, centerContainer.getHeight() - 20);
+            Image scaled = icon.getImage().getScaledInstance(Math.min(maxW, icon.getIconWidth()), Math.min(maxH, icon.getIconHeight()), Image.SCALE_SMOOTH);
+            lblImgPrincipal.setIcon(new ImageIcon(scaled));
+            lblImgPrincipal.setText("");
+
+            for (int i = 0; i < stripThumbnails.getComponentCount(); i++) {
+                Component comp = stripThumbnails.getComponent(i);
+                if (comp instanceof JLabel) {
+                    JLabel thumb = (JLabel) comp;
+                    if (i == indexActual[0]) {
+                        thumb.setBorder(BorderFactory.createLineBorder(ACCENT_BLUE, 2, true));
+                    } else {
+                        thumb.setBorder(BorderFactory.createLineBorder(new Color(60, 60, 65), 1, true));
+                    }
+                }
+            }
         };
 
         File dirFotos = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Imágenes");
-        File[] fotos = dirFotos.listFiles((dir, name) -> name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".jpeg"));
-        if (fotos != null) {
-            for (File f : fotos) listaFotos.agregar(f);
-            mostrar.run();
-        }
+        Runnable recargarFotos = () -> {
+            while (!listaFotos.estaVacia()) {
+                listaFotos.eliminar(listaFotos.obtener(0));
+            }
+            stripThumbnails.removeAll();
 
-        JPanel nav = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
-        nav.setBackground(new Color(30, 30, 30));
+            File[] fotos = dirFotos.listFiles((dir, name) -> {
+                String n = name.toLowerCase();
+                return n.endsWith(".jpg") || n.endsWith(".png") || n.endsWith(".jpeg");
+            });
 
-        JButton btnAnt = new JButton("◀ Anterior");
-        JButton btnSig = new JButton("Siguiente ▶");
+            if (fotos != null && fotos.length > 0) {
+                for (int i = 0; i < fotos.length; i++) {
+                    File f = fotos[i];
+                    listaFotos.agregar(f);
+
+                    final int idx = i;
+                    ImageIcon rawIcon = new ImageIcon(f.getAbsolutePath());
+                    Image thumbImg = rawIcon.getImage().getScaledInstance(60, 60, Image.SCALE_SMOOTH);
+                    JLabel thumbLabel = new JLabel(new ImageIcon(thumbImg));
+                    thumbLabel.setPreferredSize(new Dimension(60, 60));
+                    thumbLabel.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                    thumbLabel.setToolTipText(f.getName());
+
+                    thumbLabel.addMouseListener(new MouseAdapter() {
+                        @Override
+                        public void mouseClicked(MouseEvent e) {
+                            indexActual[0] = idx;
+                            mostrarFotoActual.run();
+                        }
+                    });
+
+                    stripThumbnails.add(thumbLabel);
+                }
+            }
+
+            if (indexActual[0] >= listaFotos.getSize()) {
+                indexActual[0] = Math.max(0, listaFotos.getSize() - 1);
+            }
+            stripThumbnails.revalidate();
+            stripThumbnails.repaint();
+            mostrarFotoActual.run();
+        };
+
+        recargarFotos.run();
+
+        // Botón Agregar Imagen
+        btnAgregarFoto.addActionListener(e -> {
+            JFileChooser fc = new JFileChooser();
+            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                File sel = fc.getSelectedFile();
+                String n = sel.getName().toLowerCase();
+                if (n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg")) {
+                    try {
+                        File dest = new File(dirFotos, sel.getName());
+                        Files.copy(sel.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                        recargarFotos.run();
+                        for (int i = 0; i < listaFotos.getSize(); i++) {
+                            if (listaFotos.obtener(i).getName().equals(dest.getName())) {
+                                indexActual[0] = i;
+                                break;
+                            }
+                        }
+                        mostrarFotoActual.run();
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(this, "Error al importar imagen: " + ex.getMessage());
+                    }
+                } else {
+                    JOptionPane.showMessageDialog(this, "Por favor seleccione una imagen válida (.png, .jpg, .jpeg)");
+                }
+            }
+        });
 
         btnAnt.addActionListener(e -> {
             if (!listaFotos.estaVacia()) {
-                index[0] = (index[0] - 1 + listaFotos.getSize()) % listaFotos.getSize();
-                mostrar.run();
+                indexActual[0] = (indexActual[0] - 1 + listaFotos.getSize()) % listaFotos.getSize();
+                mostrarFotoActual.run();
             }
         });
 
         btnSig.addActionListener(e -> {
             if (!listaFotos.estaVacia()) {
-                index[0] = (index[0] + 1) % listaFotos.getSize();
-                mostrar.run();
+                indexActual[0] = (indexActual[0] + 1) % listaFotos.getSize();
+                mostrarFotoActual.run();
             }
         });
 
-        nav.add(btnAnt);
-        nav.add(lblInfo);
-        nav.add(btnSig);
-        p.add(nav, BorderLayout.SOUTH);
+        btnEliminarFoto.addActionListener(e -> {
+            if (listaFotos.estaVacia()) return;
+            File f = listaFotos.obtener(indexActual[0]);
+            int resp = JOptionPane.showConfirmDialog(this, "¿Deseas eliminar permanentemente '" + f.getName() + "'?", "Eliminar Foto", JOptionPane.YES_NO_OPTION);
+            if (resp == JOptionPane.YES_OPTION) {
+                f.delete();
+                recargarFotos.run();
+            }
+        });
 
         return p;
     }
 
     // =========================================================================
-    // 5. MOTOR DE AUDIO HÍBRIDO (.MP3 CON JLAYER Y .WAV NATIVO CON PAUSA/REANUDACIÓN)
+    // 5. REPRODUCTOR DE MÚSICA CON FORMULARIO INTEGRADO Y CARÁTULA
     // =========================================================================
     
     private static class MotorAudioPlayer {
@@ -1009,7 +1224,6 @@ public class MiniWindowsDesktop extends JFrame {
 
             String name = file.getName().toLowerCase();
 
-            // 1. REPRODUCCIÓN DE ARCHIVOS .WAV NATIVOS
             if (name.endsWith(".wav") || name.endsWith(".au") || name.endsWith(".aiff")) {
                 isWav = true;
                 AudioInputStream ais = AudioSystem.getAudioInputStream(file);
@@ -1022,7 +1236,6 @@ public class MiniWindowsDesktop extends JFrame {
                 return;
             }
 
-            // 2. REPRODUCCIÓN DE ARCHIVOS .MP3 CON JLAYER
             isWav = false;
             duracionTotalSegundos = calcularDuracionRealMP3(file);
             iniciarStreamDesdeOffset(0);
@@ -1148,9 +1361,44 @@ public class MiniWindowsDesktop extends JFrame {
 
     private final MotorAudioPlayer motorAudio = new MotorAudioPlayer();
 
+    // Metadatos con Carátula Asociada
+    private static class MetadataCancion implements Serializable {
+        private static final long serialVersionUID = 1L;
+        String autor;
+        String descripcion;
+        String caratulaRuta;
+
+        public MetadataCancion(String autor, String descripcion, String caratulaRuta) {
+            this.autor = autor;
+            this.descripcion = descripcion;
+            this.caratulaRuta = caratulaRuta;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private HashMap<String, MetadataCancion> cargarMetadatosMusica(File dirMusica) {
+        File metaFile = new File(dirMusica, "metadatos_musica.sop");
+        if (metaFile.exists()) {
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(metaFile))) {
+                return (HashMap<String, MetadataCancion>) ois.readObject();
+            } catch (Exception ignored) {}
+        }
+        return new HashMap<>();
+    }
+
+    private void guardarMetadatosMusica(File dirMusica, HashMap<String, MetadataCancion> map) {
+        File metaFile = new File(dirMusica, "metadatos_musica.sop");
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(metaFile))) {
+            oos.writeObject(map);
+        } catch (Exception ignored) {}
+    }
+
     private JPanel crearReproductorReal() {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(new Color(32, 33, 36));
+
+        File dirMusica = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Música");
+        HashMap<String, MetadataCancion> mapaMetadatos = cargarMetadatosMusica(dirMusica);
 
         // 1. SIDEBAR IZQUIERDO
         JPanel sidebar = new JPanel(new BorderLayout());
@@ -1186,7 +1434,7 @@ public class MiniWindowsDesktop extends JFrame {
         navList.setBorder(new EmptyBorder(10, 8, 10, 8));
 
         JButton btnBiblioteca = crearBotonSidebarItem("Mi Biblioteca", true);
-        JButton btnAgregarAudio = crearBotonSidebarItem("Agregar MP3 / WAV...", false);
+        JButton btnAgregarAudio = crearBotonSidebarItem("Agregar Canción...", false);
         JButton btnAbrirCarpeta = crearBotonSidebarItem("Carpeta Música", false);
 
         navList.add(btnBiblioteca);
@@ -1196,15 +1444,20 @@ public class MiniWindowsDesktop extends JFrame {
         sidebar.add(navList, BorderLayout.CENTER);
         p.add(sidebar, BorderLayout.WEST);
 
-        // 2. PANEL CENTRAL: LISTA DE CANCIONES, CARÁTULA Y DESCRIPCIÓN
-        JPanel centerPanel = new JPanel(new BorderLayout(15, 15));
-        centerPanel.setBackground(new Color(32, 33, 36));
-        centerPanel.setBorder(new EmptyBorder(18, 20, 10, 20));
+        // 2. CONTENEDOR CENTRAL CON CARDLAYOUT
+        CardLayout cardsCenter = new CardLayout();
+        JPanel centerCards = new JPanel(cardsCenter);
+        centerCards.setOpaque(false);
+
+        // --- TARJETA 1: BIBLIOTECA REGULAR ---
+        JPanel vistaBiblioteca = new JPanel(new BorderLayout(15, 15));
+        vistaBiblioteca.setBackground(new Color(32, 33, 36));
+        vistaBiblioteca.setBorder(new EmptyBorder(18, 20, 10, 20));
 
         JLabel lblHeader = new JLabel("Música");
         lblHeader.setFont(new Font("Segoe UI", Font.BOLD, 26));
         lblHeader.setForeground(Color.WHITE);
-        centerPanel.add(lblHeader, BorderLayout.NORTH);
+        vistaBiblioteca.add(lblHeader, BorderLayout.NORTH);
 
         DefaultListModel<File> playlistModel = new DefaultListModel<>();
         JList<File> playlist = new JList<>(playlistModel);
@@ -1230,7 +1483,7 @@ public class MiniWindowsDesktop extends JFrame {
         JScrollPane scrollPlaylist = new JScrollPane(playlist);
         scrollPlaylist.setBorder(BorderFactory.createLineBorder(new Color(50, 52, 58), 1, true));
 
-        // Panel de Detalles (Carátula y Descripción según Sección 3.7 PDF)
+        // Panel de Detalles
         JPanel detailsPanel = new JPanel(new BorderLayout(12, 12));
         detailsPanel.setPreferredSize(new Dimension(280, 0));
         detailsPanel.setBackground(new Color(24, 25, 28));
@@ -1239,23 +1492,25 @@ public class MiniWindowsDesktop extends JFrame {
                 new EmptyBorder(15, 15, 15, 15)
         ));
 
-        JLabel lblCaratula = new JLabel() {
+        JLabel lblCaratula = new JLabel("", SwingConstants.CENTER) {
             @Override
             protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setPaint(new GradientPaint(0, 0, new Color(45, 48, 56), getWidth(), getHeight(), new Color(20, 22, 26)));
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
-
-                g2.setColor(new Color(234, 88, 12));
-                int cx = getWidth() / 2;
-                int cy = getHeight() / 2;
-                g2.fillOval(cx - 20, cy + 5, 14, 10);
-                g2.fillOval(cx + 6, cy - 2, 14, 10);
-                g2.fillRect(cx - 8, cy - 22, 3, 30);
-                g2.fillRect(cx + 18, cy - 28, 3, 30);
-                g2.fillRect(cx - 8, cy - 25, 29, 6);
-                g2.dispose();
+                super.paintComponent(g);
+                if (getIcon() == null) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setPaint(new GradientPaint(0, 0, new Color(45, 48, 56), getWidth(), getHeight(), new Color(20, 22, 26)));
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                    g2.setColor(new Color(234, 88, 12));
+                    int cx = getWidth() / 2;
+                    int cy = getHeight() / 2;
+                    g2.fillOval(cx - 20, cy + 5, 14, 10);
+                    g2.fillOval(cx + 6, cy - 2, 14, 10);
+                    g2.fillRect(cx - 8, cy - 22, 3, 30);
+                    g2.fillRect(cx + 18, cy - 28, 3, 30);
+                    g2.fillRect(cx - 8, cy - 25, 29, 6);
+                    g2.dispose();
+                }
             }
         };
         lblCaratula.setPreferredSize(new Dimension(180, 160));
@@ -1275,10 +1530,163 @@ public class MiniWindowsDesktop extends JFrame {
         splitCenter.setOpaque(false);
         splitCenter.setBorder(null);
 
-        centerPanel.add(splitCenter, BorderLayout.CENTER);
-        p.add(centerPanel, BorderLayout.CENTER);
+        vistaBiblioteca.add(splitCenter, BorderLayout.CENTER);
 
-        // 3. BARRA INFERIOR DE REPRODUCCIÓN (PLAY / PAUSA / STOP REAL)
+        // --- TARJETA 2: FORMULARIO INTEGRADO PARA AGREGAR CANCIÓN ---
+        JPanel vistaAgregar = new JPanel(new BorderLayout(15, 15));
+        vistaAgregar.setBackground(new Color(32, 33, 36));
+        vistaAgregar.setBorder(new EmptyBorder(18, 25, 18, 25));
+
+        JLabel lblHeaderAdd = new JLabel("Agregar Nueva Canción a la Biblioteca");
+        lblHeaderAdd.setFont(new Font("Segoe UI", Font.BOLD, 22));
+        lblHeaderAdd.setForeground(Color.WHITE);
+        vistaAgregar.add(lblHeaderAdd, BorderLayout.NORTH);
+
+        JPanel formContent = new JPanel(new GridLayout(1, 2, 20, 0));
+        formContent.setBackground(new Color(24, 25, 28));
+        formContent.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(50, 52, 58), 1, true),
+                new EmptyBorder(20, 20, 20, 20)
+        ));
+
+        // Columna Izquierda: Carátula
+        JPanel colCaratula = new JPanel(new BorderLayout(10, 10));
+        colCaratula.setOpaque(false);
+
+        JLabel lblTitCaratula = new JLabel("Vista Previa de Carátula:", SwingConstants.CENTER);
+        lblTitCaratula.setForeground(Color.WHITE);
+        lblTitCaratula.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        JLabel lblPreviewCaratula = new JLabel("Sin Carátula", SwingConstants.CENTER);
+        lblPreviewCaratula.setPreferredSize(new Dimension(180, 180));
+        lblPreviewCaratula.setOpaque(true);
+        lblPreviewCaratula.setBackground(new Color(35, 36, 40));
+        lblPreviewCaratula.setForeground(TEXT_MUTED);
+        lblPreviewCaratula.setBorder(BorderFactory.createLineBorder(new Color(60, 62, 68), 1, true));
+
+        final File[] archivoCaratulaSeleccionada = {null};
+        final File[] archivoAudioSeleccionado = {null};
+
+        JButton btnBuscarCaratula = crearBotonPersonalizado("Seleccionar Carátula (.jpg / .png)", new Color(45, 46, 52), new Color(65, 68, 78));
+
+        btnBuscarCaratula.addActionListener(e -> {
+            JFileChooser fc = new JFileChooser();
+            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                File img = fc.getSelectedFile();
+                String n = img.getName().toLowerCase();
+                if (n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg")) {
+                    archivoCaratulaSeleccionada[0] = img;
+                    ImageIcon raw = new ImageIcon(img.getAbsolutePath());
+                    Image scaled = raw.getImage().getScaledInstance(180, 180, Image.SCALE_SMOOTH);
+                    lblPreviewCaratula.setIcon(new ImageIcon(scaled));
+                    lblPreviewCaratula.setText("");
+                } else {
+                    JOptionPane.showMessageDialog(this, "Por favor seleccione una imagen válida (.png o .jpg)");
+                }
+            }
+        });
+
+        colCaratula.add(lblTitCaratula, BorderLayout.NORTH);
+        colCaratula.add(lblPreviewCaratula, BorderLayout.CENTER);
+        colCaratula.add(btnBuscarCaratula, BorderLayout.SOUTH);
+
+        // Columna Derecha: Audio, Autor y Descripción
+        JPanel colDatos = new JPanel(new GridLayout(7, 1, 4, 4));
+        colDatos.setOpaque(false);
+
+        JLabel lblAudioSel = new JLabel("Ningún archivo de audio seleccionado");
+        lblAudioSel.setForeground(TEXT_MUTED);
+        lblAudioSel.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+
+        JButton btnBuscarAudio = crearBotonPersonalizado("Elegir Archivo MP3 / WAV", new Color(45, 46, 52), new Color(65, 68, 78));
+
+        btnBuscarAudio.addActionListener(e -> {
+            JFileChooser fc = new JFileChooser();
+            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                File audio = fc.getSelectedFile();
+                String n = audio.getName().toLowerCase();
+                if (n.endsWith(".mp3") || n.endsWith(".wav")) {
+                    archivoAudioSeleccionado[0] = audio;
+                    lblAudioSel.setText("Seleccionado: " + audio.getName());
+                    lblAudioSel.setForeground(new Color(74, 222, 128));
+                } else {
+                    JOptionPane.showMessageDialog(this, "Por favor seleccione un archivo .mp3 o .wav");
+                }
+            }
+        });
+
+        JLabel lblTitAutor = new JLabel("Autor / Artista:");
+        lblTitAutor.setForeground(Color.WHITE);
+        lblTitAutor.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        JTextField txtAutorInput = new JTextField();
+        txtAutorInput.setBackground(new Color(36, 37, 42));
+        txtAutorInput.setForeground(Color.WHITE);
+        txtAutorInput.setCaretColor(Color.WHITE);
+        txtAutorInput.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(60, 62, 68), 1, true),
+                new EmptyBorder(4, 6, 4, 6)
+        ));
+
+        JLabel lblTitDesc = new JLabel("Descripción breve:");
+        lblTitDesc.setForeground(Color.WHITE);
+        lblTitDesc.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        JTextArea txtDescInput = new JTextArea(2, 20);
+        txtDescInput.setLineWrap(true);
+        txtDescInput.setWrapStyleWord(true);
+        txtDescInput.setBackground(new Color(36, 37, 42));
+        txtDescInput.setForeground(Color.WHITE);
+        txtDescInput.setCaretColor(Color.WHITE);
+
+        JScrollPane scrollDesc = new JScrollPane(txtDescInput);
+        scrollDesc.setBorder(BorderFactory.createLineBorder(new Color(60, 62, 68), 1, true));
+        scrollDesc.setBackground(new Color(36, 37, 42));
+        scrollDesc.getViewport().setBackground(new Color(36, 37, 42));
+
+        JLabel lblConteoPalabras = new JLabel("Palabras: 0 / 50");
+        lblConteoPalabras.setForeground(TEXT_MUTED);
+        lblConteoPalabras.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+
+        txtDescInput.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                String t = txtDescInput.getText().trim();
+                int cant = t.isEmpty() ? 0 : t.split("\\s+").length;
+                lblConteoPalabras.setText("Palabras: " + cant + " / 50");
+                if (cant > 50) lblConteoPalabras.setForeground(new Color(248, 113, 113));
+                else lblConteoPalabras.setForeground(TEXT_MUTED);
+            }
+        });
+
+        colDatos.add(btnBuscarAudio);
+        colDatos.add(lblAudioSel);
+        colDatos.add(lblTitAutor);
+        colDatos.add(txtAutorInput);
+        colDatos.add(lblTitDesc);
+        colDatos.add(scrollDesc);
+        colDatos.add(lblConteoPalabras);
+
+        formContent.add(colCaratula);
+        formContent.add(colDatos);
+        vistaAgregar.add(formContent, BorderLayout.CENTER);
+
+        // Botones Inferiores del Formulario
+        JPanel formBotones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 5));
+        formBotones.setOpaque(false);
+
+        JButton btnCancelarForm = crearBotonPersonalizado("Cancelar", new Color(50, 52, 58), new Color(70, 72, 80));
+        JButton btnGuardarForm = crearBotonPersonalizado("Guardar y Añadir a Biblioteca", new Color(234, 88, 12), new Color(249, 115, 22));
+
+        formBotones.add(btnCancelarForm);
+        formBotones.add(btnGuardarForm);
+        vistaAgregar.add(formBotones, BorderLayout.SOUTH);
+
+        centerCards.add(vistaBiblioteca, "BIBLIOTECA");
+        centerCards.add(vistaAgregar, "AGREGAR");
+        p.add(centerCards, BorderLayout.CENTER);
+
+        // 3. BARRA INFERIOR DE REPRODUCCIÓN
         JPanel bottomBar = new JPanel(new BorderLayout(10, 4));
         bottomBar.setBackground(new Color(18, 19, 21));
         bottomBar.setBorder(new EmptyBorder(6, 18, 8, 18));
@@ -1354,13 +1762,12 @@ public class MiniWindowsDesktop extends JFrame {
         bottomBar.add(controlRow, BorderLayout.CENTER);
         p.add(bottomBar, BorderLayout.SOUTH);
 
-        // Carga de Archivos de la carpeta Música
-        File dirMusica = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Música");
+        // Recargar Playlist y mostrar carátula
         Runnable recargarMusica = () -> {
             playlistModel.clear();
             File[] canciones = dirMusica.listFiles((dir, name) -> {
                 String n = name.toLowerCase();
-                return n.endsWith(".mp3") || n.endsWith(".wav") || n.endsWith(".au");
+                return n.endsWith(".mp3") || n.endsWith(".wav");
             });
             if (canciones != null) {
                 for (File c : canciones) playlistModel.addElement(c);
@@ -1372,29 +1779,85 @@ public class MiniWindowsDesktop extends JFrame {
             File sel = playlist.getSelectedValue();
             if (sel != null) {
                 lblTrackTitle.setText(sel.getName());
-                txtDescripcion.setText("Título: " + sel.getName() + "\n\n"
+                MetadataCancion meta = mapaMetadatos.get(sel.getName());
+                String autor = (meta != null && !meta.autor.isEmpty()) ? meta.autor : "Desconocido";
+                String desc = (meta != null && !meta.descripcion.isEmpty()) ? meta.descripcion : "Sin descripción personalizada.";
+
+                if (meta != null && meta.caratulaRuta != null && new File(meta.caratulaRuta).exists()) {
+                    ImageIcon img = new ImageIcon(meta.caratulaRuta);
+                    Image scaled = img.getImage().getScaledInstance(180, 160, Image.SCALE_SMOOTH);
+                    lblCaratula.setIcon(new ImageIcon(scaled));
+                } else {
+                    lblCaratula.setIcon(null);
+                }
+
+                txtDescripcion.setText("Título: " + sel.getName() + "\n"
+                        + "Autor/Artista: " + autor + "\n\n"
+                        + "Descripción:\n" + desc + "\n\n"
                         + "Formato: Audio " + obtenerExtension(sel.getName()) + "\n"
                         + "Tamaño: " + (sel.length() / 1024) + " KB\n"
                         + "Ruta: " + sel.getAbsolutePath());
             }
         });
 
+        // Eventos del Sidebar
+        btnBiblioteca.addActionListener(e -> cardsCenter.show(centerCards, "BIBLIOTECA"));
+
         btnAgregarAudio.addActionListener(e -> {
-            JFileChooser fc = new JFileChooser();
-            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-                try {
-                    File sel = fc.getSelectedFile();
-                    Files.copy(sel.toPath(), new File(dirMusica, sel.getName()).toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    recargarMusica.run();
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(this, "Error al importar audio: " + ex.getMessage());
+            archivoAudioSeleccionado[0] = null;
+            archivoCaratulaSeleccionada[0] = null;
+            lblAudioSel.setText("Ningún archivo de audio seleccionado");
+            lblAudioSel.setForeground(TEXT_MUTED);
+            lblPreviewCaratula.setIcon(null);
+            lblPreviewCaratula.setText("Sin Carátula");
+            txtAutorInput.setText("");
+            txtDescInput.setText("");
+            lblConteoPalabras.setText("Palabras: 0 / 50");
+            cardsCenter.show(centerCards, "AGREGAR");
+        });
+
+        btnCancelarForm.addActionListener(e -> cardsCenter.show(centerCards, "BIBLIOTECA"));
+
+        btnGuardarForm.addActionListener(e -> {
+            if (archivoAudioSeleccionado[0] == null) {
+                JOptionPane.showMessageDialog(this, "Debe seleccionar un archivo de audio (.mp3 o .wav)", "Atención", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            String desc = txtDescInput.getText().trim();
+            String[] pals = desc.isEmpty() ? new String[0] : desc.split("\\s+");
+            if (pals.length > 50) {
+                JOptionPane.showMessageDialog(this, "La descripción no puede superar las 50 palabras.", "Límite Excedido", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            try {
+                File audioDest = new File(dirMusica, archivoAudioSeleccionado[0].getName());
+                Files.copy(archivoAudioSeleccionado[0].toPath(), audioDest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+                String rutaCaratula = null;
+                if (archivoCaratulaSeleccionada[0] != null) {
+                    String extImg = obtenerExtension(archivoCaratulaSeleccionada[0].getName()).toLowerCase();
+                    File caratulaDest = new File(dirMusica, archivoAudioSeleccionado[0].getName() + "_cover." + extImg);
+                    Files.copy(archivoCaratulaSeleccionada[0].toPath(), caratulaDest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    rutaCaratula = caratulaDest.getAbsolutePath();
                 }
+
+                String autor = txtAutorInput.getText().trim();
+                mapaMetadatos.put(audioDest.getName(), new MetadataCancion(autor, desc, rutaCaratula));
+                guardarMetadatosMusica(dirMusica, mapaMetadatos);
+
+                recargarMusica.run();
+                cardsCenter.show(centerCards, "BIBLIOTECA");
+                JOptionPane.showMessageDialog(this, "¡Canción agregada con éxito a la biblioteca!");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error al guardar canción: " + ex.getMessage());
             }
         });
 
-        btnAbrirCarpeta.addActionListener(e -> abrirExplorador());
+        btnAbrirCarpeta.addActionListener(e -> abrirExplorador(dirMusica));
 
-        // HILO CONCURRENTE PARA LA SINCRONIZACIÓN DEL TIEMPO Y PROGRESO
+        // Hilo de Tiempo
         Thread hiloProgreso = new Thread(() -> {
             while (true) {
                 if (motorAudio.estaReproduciendo() && !motorAudio.estaPausado()) {
@@ -1415,7 +1878,6 @@ public class MiniWindowsDesktop extends JFrame {
         hiloProgreso.setDaemon(true);
         hiloProgreso.start();
 
-        // CONTROL DE PLAY / PAUSA EXACTO (REANUDA SIN REINICIAR)
         btnPlay.addActionListener(e -> {
             File sel = playlist.getSelectedValue();
             if (sel == null && playlistModel.getSize() > 0) {
@@ -1430,7 +1892,6 @@ public class MiniWindowsDesktop extends JFrame {
 
             File archivoFinal = sel;
 
-            // 1. SI ESTÁ SONANDO -> PAUSAR
             if (motorAudio.estaReproduciendo()) {
                 motorAudio.pausar();
                 btnPlay.setText("PLAY");
@@ -1438,7 +1899,6 @@ public class MiniWindowsDesktop extends JFrame {
                 return;
             }
 
-            // 2. SI ESTABA PAUSADO EN LA MISMA PISTA -> REANUDAR
             if (motorAudio.estaPausado() && archivoFinal.equals(motorAudio.getArchivoActual())) {
                 motorAudio.reanudar();
                 btnPlay.setText("PAUSE");
@@ -1446,7 +1906,6 @@ public class MiniWindowsDesktop extends JFrame {
                 return;
             }
 
-            // 3. REPRODUCIR NUEVA CANCIÓN DESDE EL INICIO EN SU PROPIO HILO
             new Thread(() -> {
                 try {
                     motorAudio.reproducir(archivoFinal);
@@ -1474,7 +1933,6 @@ public class MiniWindowsDesktop extends JFrame {
             lblTimeCur.setText("00:00");
         });
 
-        // NAVEGACIÓN CIRCULAR (PREV Y NEXT)
         btnPrev.addActionListener(e -> {
             int total = playlistModel.getSize();
             if (total > 0) {

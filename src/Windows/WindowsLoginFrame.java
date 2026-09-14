@@ -118,7 +118,7 @@ public class WindowsLoginFrame extends JFrame {
         lblLoginError.setFont(new Font("Segoe UI", Font.BOLD, 12));
         lblLoginError.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JButton btnLogin = crearBotonPrimario("Ingresar ➔");
+        JButton btnLogin = crearBotonPrimario("Ingresar");
         btnLogin.addActionListener(e -> procesarLogin());
 
         JButton btnIrRegistro = new JButton("¿No tienes cuenta? Crear usuario");
@@ -194,7 +194,7 @@ public class WindowsLoginFrame extends JFrame {
         JButton btnRegistrar = crearBotonPrimario("Crear Cuenta y Espacio Z:\\");
         btnRegistrar.addActionListener(e -> procesarRegistro());
 
-        JButton btnVolver = new JButton("⬅ Volver al inicio de sesión");
+        JButton btnVolver = new JButton("Volver al inicio de sesión");
         estilizarBotonLink(btnVolver);
         btnVolver.addActionListener(e -> cardLayout.show(cardContainer, "LOGIN"));
 
@@ -405,10 +405,10 @@ public class WindowsLoginFrame extends JFrame {
         btn.setAlignmentX(Component.CENTER_ALIGNMENT);
     }
 
-    // Barra 100% transparente sin fondo blanco
+    // Barra transparente con texto limpio
     private JPanel crearBarraBloqueo() {
         JPanel bottomBar = new JPanel(new BorderLayout());
-        bottomBar.setOpaque(false); // Transparente
+        bottomBar.setOpaque(false);
         bottomBar.setBorder(new EmptyBorder(12, 30, 18, 30));
 
         JLabel lblTime = new JLabel();
@@ -421,7 +421,7 @@ public class WindowsLoginFrame extends JFrame {
         timer.start();
         lblTime.setText(new SimpleDateFormat("hh:mm a   |   EEEE, d 'de' MMMM").format(new Date()));
 
-        JButton btnPower = new JButton("⏻ Apagar") {
+        JButton btnPower = new JButton("Apagar") {
             @Override
             protected void paintComponent(Graphics g) {
                 if (getModel().isRollover()) {
