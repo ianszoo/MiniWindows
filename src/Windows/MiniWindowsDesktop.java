@@ -433,7 +433,8 @@ public class MiniWindowsDesktop extends JFrame {
     private void abrirVisor() { gestionarVentana("VISOR", "Visor de Imágenes", crearVisorReal(), 880, 600); }
     private void abrirCMD() { gestionarVentana("CMD", "Símbolo del Sistema (CMD)", crearCmdReal(), 720, 440); }
     private void abrirReproductor() { gestionarVentana("REPRODUCTOR", "Media Player", crearReproductorReal(), 920, 580); }
-    private void abrirInsta() { gestionarVentana("INSTA", "INSTA+ - Red Social Integrada", new InstaPanel(usuarioActual), 920, 620); }
+    private void abrirInsta() { gestionarVentana("INSTA", "INSTA+ Mobile", new InstaPanel(usuarioActual), 460, 750); 
+}
 
     // Utilidad: Crea botones con estilo oscuro nativo sin fondos blancos en hover
     private JButton crearBotonPersonalizado(String texto, Color bgBase, Color bgHover) {

@@ -10,18 +10,17 @@ import Windows.Nodo;
 import Windows.SistemadeArchivos;
 import Windows.Usuario;
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 
 public class InstaFileManager {
     public static final String RUTA_INSTA = SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/INSTA_RAIZ";
     public static final String ARCHIVO_USERS_INS = RUTA_INSTA + "/users.ins";
+    public static final String RUTA_STICKERS_GLOBALES = RUTA_INSTA + "/stickers_globales";
 
     public static synchronized void inicializarInsta() {
         File raiz = new File(RUTA_INSTA);
         if (!raiz.exists()) raiz.mkdirs();
 
-        File globStickers = new File(RUTA_INSTA + "/stickers_globales");
+        File globStickers = new File(RUTA_STICKERS_GLOBALES);
         if (!globStickers.exists()) globStickers.mkdirs();
 
         File userIns = new File(ARCHIVO_USERS_INS);
@@ -44,14 +43,14 @@ public class InstaFileManager {
                 n = n.getSiguiente();
             }
 
-            publicarDemo("noticias", "Lanzamiento oficial de la plataforma #Sistemas #Tecnologia @admin", null, false);
-            publicarDemo("deportes", "Gran final de fútbol hoy a las 8PM @todos #Deporte #Campeonato", null, false);
-            publicarDemo("entretenimiento", "Tendencias de moda en tecnología 2026 #Moda @admin", null, false);
+            publicarDemo("noticias", "Lanzamiento oficial de la plataforma #Sistemas #Tecnologia @admin", null, "Noticias", false);
+            publicarDemo("deportes", "Gran final de fútbol hoy a las 8PM @todos #Deporte #Campeonato", null, "Eventos", false);
+            publicarDemo("entretenimiento", "Tendencias de moda en tecnología 2026 #Moda @admin", null, "General", false);
         }
     }
 
-    private static void publicarDemo(String autor, String txt, String sticker, boolean esHistoria) {
-        Publicacion p = new Publicacion(autor, txt, null, sticker, esHistoria);
+    private static void publicarDemo(String autor, String txt, String sticker, String carpeta, boolean esHistoria) {
+        Publicacion p = new Publicacion(autor, txt, null, carpeta, sticker, esHistoria, Publicacion.AspectRatio.CUADRADA);
         Lista<Publicacion> posts = cargarPublicaciones(autor);
         posts.agregar(p);
         guardarPublicaciones(autor, posts);
@@ -65,16 +64,25 @@ public class InstaFileManager {
             new File(uDir, "folders_personales").mkdirs();
             new File(uDir, "folders_personales/General").mkdirs();
             new File(uDir, "folders_personales/Viajes").mkdirs();
+            new File(uDir, "folders_personales/Memes").mkdirs();
             new File(uDir, "stickers_personales").mkdirs();
 
             guardarListaGenerica(new File(uDir, "following.ins"), new Lista<String>());
             guardarListaGenerica(new File(uDir, "followers.ins"), new Lista<String>());
             guardarListaGenerica(new File(uDir, "insta.ins"), new Lista<Publicacion>());
             guardarListaGenerica(new File(uDir, "inbox.ins"), new Lista<MensajeInbox>());
+            
+            Lista<String> stks = new Lista<>();
+            stks.agregar("😊 Feliz");
+            stks.agregar("😢 Triste");
+            stks.agregar("❤️ Corazón");
+            stks.agregar("😂 Risa");
+            stks.agregar("👏 Aplauso");
+            guardarListaGenerica(new File(uDir, "stickers.ins"), stks);
         }
     }
 
-    // --- PERSISTENCIA BINARIA GENÉRICA ---
+    // --- PERSISTENCIA BINARIA (.INS) ---
     public static synchronized <T> void guardarListaGenerica(File file, Lista<T> lista) {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file))) {
             oos.writeObject(lista);
@@ -93,7 +101,7 @@ public class InstaFileManager {
         }
     }
 
-    // --- GESTIÓN DE USUARIOS ---
+    // --- USUARIOS ---
     public static synchronized Lista<Usuario> cargarUsuariosInsta() {
         return cargarListaGenerica(new File(ARCHIVO_USERS_INS));
     }
@@ -106,9 +114,7 @@ public class InstaFileManager {
         Lista<Usuario> lista = cargarUsuariosInsta();
         Nodo<Usuario> n = lista.getHead();
         while (n != null) {
-            if (n.getDato().getUsername().equalsIgnoreCase(username)) {
-                return n.getDato();
-            }
+            if (n.getDato().getUsername().equalsIgnoreCase(username)) return n.getDato();
             n = n.getSiguiente();
         }
         return null;
@@ -127,12 +133,15 @@ public class InstaFileManager {
         guardarUsuariosInsta(lista);
     }
 
-    public static synchronized Usuario autenticarInsta(String username, String password) {
+    public static synchronized Usuario autenticarInsta(String username, String password) throws CuentaDesactivadaException {
         Lista<Usuario> usuarios = cargarUsuariosInsta();
         Nodo<Usuario> n = usuarios.getHead();
         while (n != null) {
             Usuario u = n.getDato();
             if (u.getUsername().equalsIgnoreCase(username) && u.getPass().equals(password)) {
+                if (!u.isActivo()) {
+                    throw new CuentaDesactivadaException("Tu cuenta se encuentra desactivada. Reactívala para continuar.");
+                }
                 return u;
             }
             n = n.getSiguiente();
@@ -144,9 +153,7 @@ public class InstaFileManager {
         Lista<Usuario> usuarios = cargarUsuariosInsta();
         Nodo<Usuario> n = usuarios.getHead();
         while (n != null) {
-            if (n.getDato().getUsername().equalsIgnoreCase(nuevo.getUsername())) {
-                return false;
-            }
+            if (n.getDato().getUsername().equalsIgnoreCase(nuevo.getUsername())) return false;
             n = n.getSiguiente();
         }
         usuarios.agregar(nuevo);
@@ -157,16 +164,14 @@ public class InstaFileManager {
 
     // --- PUBLICACIONES ---
     public static Lista<Publicacion> cargarPublicaciones(String username) {
-        File f = new File(RUTA_INSTA + "/" + username + "/insta.ins");
-        return cargarListaGenerica(f);
+        return cargarListaGenerica(new File(RUTA_INSTA + "/" + username + "/insta.ins"));
     }
 
     public static void guardarPublicaciones(String username, Lista<Publicacion> posts) {
-        File f = new File(RUTA_INSTA + "/" + username + "/insta.ins");
-        guardarListaGenerica(f, posts);
+        guardarListaGenerica(new File(RUTA_INSTA + "/" + username + "/insta.ins"), posts);
     }
 
-    // --- SEGUIMIENTO ---
+    // --- SEGUIMIENTO (FOLLOW / UNFOLLOW) ---
     public static Lista<String> cargarSeguidos(String username) {
         return cargarListaGenerica(new File(RUTA_INSTA + "/" + username + "/following.ins"));
     }
@@ -185,7 +190,6 @@ public class InstaFileManager {
         Lista<String> followers = cargarListaGenerica(fFollowers);
 
         boolean yaLoSigue = following.contiene(usuarioDestino.toLowerCase());
-
         if (yaLoSigue) {
             following.eliminar(usuarioDestino.toLowerCase());
             followers.eliminar(usuarioActual.toLowerCase());
@@ -201,10 +205,9 @@ public class InstaFileManager {
         }
     }
 
-    // --- MENSAJERÍA DIRECTA ---
+    // --- INBOX / MENSAJES ---
     public static synchronized void enviarMensaje(String emisor, String receptor, String texto, MensajeInbox.Tipo tipo) {
         MensajeInbox msg = new MensajeInbox(emisor, receptor, texto, tipo);
-
         File fEmisor = new File(RUTA_INSTA + "/" + emisor + "/inbox.ins");
         Lista<MensajeInbox> inboxEmisor = cargarListaGenerica(fEmisor);
         inboxEmisor.agregar(msg);
@@ -227,9 +230,7 @@ public class InstaFileManager {
             if ((m.getEmisor().equalsIgnoreCase(u1) && m.getReceptor().equalsIgnoreCase(u2)) ||
                 (m.getEmisor().equalsIgnoreCase(u2) && m.getReceptor().equalsIgnoreCase(u1))) {
                 chat.agregar(m);
-                if (m.getReceptor().equalsIgnoreCase(u1)) {
-                    m.setLeido(true);
-                }
+                if (m.getReceptor().equalsIgnoreCase(u1)) m.setLeido(true);
             }
             n = n.getSiguiente();
         }
@@ -247,50 +248,38 @@ public class InstaFileManager {
             MensajeInbox m = n.getDato();
             boolean pertenece = (m.getEmisor().equalsIgnoreCase(u1) && m.getReceptor().equalsIgnoreCase(u2)) ||
                                 (m.getEmisor().equalsIgnoreCase(u2) && m.getReceptor().equalsIgnoreCase(u1));
-            if (!pertenece) {
-                filtrados.agregar(m);
-            }
+            if (!pertenece) filtrados.agregar(m);
             n = n.getSiguiente();
         }
         guardarListaGenerica(f, filtrados);
     }
 
-    // --- CARGAR STICKER PACK FÍSICO AUTOMÁTICAMENTE ---
+    // --- CARGA DE STICKERS ---
     public static synchronized Lista<String> cargarStickers(String username) {
-        Lista<String> listaStickers = new Lista<>();
+        File fStk = new File(RUTA_INSTA + "/" + username + "/stickers.ins");
+        Lista<String> stickers = cargarListaGenerica(fStk);
 
-        File[] carpetasPack = {
-            new File("src/Insta/stickers"),
-            new File("Insta/stickers"),
-            new File("stickers"),
-            new File(RUTA_INSTA + "/stickers_globales"),
-            new File(RUTA_INSTA + "/" + username + "/stickers_personales")
-        };
+        if (stickers.estaVacia()) {
+            stickers.agregar("😊 Feliz");
+            stickers.agregar("😢 Triste");
+            stickers.agregar("❤️ Corazón");
+            stickers.agregar("😂 Risa");
+            stickers.agregar("👏 Aplauso");
+            guardarListaGenerica(fStk, stickers);
+        }
 
-        for (File dir : carpetasPack) {
-            if (dir.exists() && dir.isDirectory()) {
-                File[] archivos = dir.listFiles((d, name) -> {
-                    String n = name.toLowerCase();
-                    return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg") || n.endsWith(".gif");
-                });
-                if (archivos != null) {
-                    for (File f : archivos) {
-                        if (!listaStickers.contiene(f.getAbsolutePath())) {
-                            listaStickers.agregar(f.getAbsolutePath());
-                        }
-                    }
+        File persDir = new File(RUTA_INSTA + "/" + username + "/stickers_personales");
+        if (persDir.exists()) {
+            File[] files = persDir.listFiles((d, name) -> {
+                String n = name.toLowerCase();
+                return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg");
+            });
+            if (files != null) {
+                for (File f : files) {
+                    if (!stickers.contiene(f.getAbsolutePath())) stickers.agregar(f.getAbsolutePath());
                 }
             }
         }
-
-        if (listaStickers.estaVacia()) {
-            listaStickers.agregar("😊 Feliz");
-            listaStickers.agregar("😢 Triste");
-            listaStickers.agregar("❤️ Corazón");
-            listaStickers.agregar("😂 Risa");
-            listaStickers.agregar("🔥 Fuego");
-        }
-
-        return listaStickers;
+        return stickers;
     }
 }

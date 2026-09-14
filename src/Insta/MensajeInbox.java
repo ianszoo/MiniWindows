@@ -19,14 +19,14 @@ public class MensajeInbox implements Serializable {
     private String emisor;
     private String receptor;
     private Date fecha;
-    private String texto; 
+    private String texto; // Máximo 300 caracteres
     private Tipo tipo;
     private boolean leido;
 
     public MensajeInbox(String emisor, String receptor, String texto, Tipo tipo) {
         this.emisor = emisor;
         this.receptor = receptor;
-        this.texto = texto;
+        this.texto = (texto != null && texto.length() > 300) ? texto.substring(0, 300) : texto;
         this.tipo = tipo;
         this.fecha = new Date();
         this.leido = false;

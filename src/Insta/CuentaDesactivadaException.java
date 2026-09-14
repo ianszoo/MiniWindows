@@ -10,7 +10,7 @@ package Insta;
  * @author David Suazo Palao
  */
 public class CuentaDesactivadaException extends Exception{
-    public CuentaDesactivadaException (String msj){
-        super (msj);
+    public CuentaDesactivadaException(String msj) {
+        super(msj);
     }
 }
