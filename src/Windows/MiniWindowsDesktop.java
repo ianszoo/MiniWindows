@@ -472,6 +472,18 @@ public class MiniWindowsDesktop extends JFrame {
         return texto.substring(0, Math.max(0, maxLen - 3)) + "...";
     }
 
+    // Helper que resuelve la carátula de forma relativa para que funcione en cualquier PC con Git Pull
+    private static File resolverArchivoCaratula(File dirMusica, String caratulaRutaONombre) {
+        if (caratulaRutaONombre == null || caratulaRutaONombre.trim().isEmpty()) return null;
+        // 1. Probar en la carpeta Música local del usuario
+        File fRelativo = new File(dirMusica, new File(caratulaRutaONombre).getName());
+        if (fRelativo.exists()) return fRelativo;
+        // 2. Probar ruta directa si existe
+        File fDirecto = new File(caratulaRutaONombre);
+        if (fDirecto.exists()) return fDirecto;
+        return null;
+    }
+
     // =========================================================================
     // 1. EXPLORADOR DE ARCHIVOS
     // =========================================================================
@@ -1193,7 +1205,7 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 5. REPRODUCTOR DE MÚSICA CON BUSCADOR EN TIEMPO REAL Y SPOTIFY VIEW
+    // 5. REPRODUCTOR DE MÚSICA CON RESOLUCIÓN RELATIVA DE CARÁTULA PARA GIT
     // =========================================================================
     
     private static class MotorAudioPlayer {
@@ -1385,18 +1397,19 @@ public class MiniWindowsDesktop extends JFrame {
 
     private final MotorAudioPlayer motorAudio = new MotorAudioPlayer();
 
+    // Metadatos con Álbum, Autor, Descripción y Nombre Relativo de Carátula
     private static class MetadataCancion implements Serializable {
-        private static final long serialVersionUID = 2L;
+        private static final long serialVersionUID = 3L;
         String autor;
         String album;
         String descripcion;
-        String caratulaRuta;
+        String caratulaNombre; // Guarda únicamente el nombre relativo para portabilidad con Git
 
-        public MetadataCancion(String autor, String album, String descripcion, String caratulaRuta) {
+        public MetadataCancion(String autor, String album, String descripcion, String caratulaNombre) {
             this.autor = autor;
             this.album = album;
             this.descripcion = descripcion;
-            this.caratulaRuta = caratulaRuta;
+            this.caratulaNombre = caratulaNombre;
         }
     }
 
@@ -1447,7 +1460,6 @@ public class MiniWindowsDesktop extends JFrame {
         lblLogo.setIcon(cargarIcono("musica_icono", 20, 20));
         topSidebar.add(lblLogo, BorderLayout.NORTH);
 
-        // BUSCADOR EN TIEMPO REAL CON HINT
         JTextField searchBar = new JTextField("Buscar canción, artista...");
         searchBar.setPreferredSize(new Dimension(170, 28));
         searchBar.setBackground(new Color(30, 30, 34));
@@ -1557,8 +1569,9 @@ public class MiniWindowsDesktop extends JFrame {
                     lblTrack.setForeground(Color.WHITE);
                     lblArtist.setForeground(new Color(160, 160, 160));
 
-                    if (meta != null && meta.caratulaRuta != null && new File(meta.caratulaRuta).exists()) {
-                        ImageIcon raw = new ImageIcon(meta.caratulaRuta);
+                    File imgCaratula = (meta != null) ? resolverArchivoCaratula(dirMusica, meta.caratulaNombre) : null;
+                    if (imgCaratula != null) {
+                        ImageIcon raw = new ImageIcon(imgCaratula.getAbsolutePath());
                         lblThumb.setIcon(new ImageIcon(raw.getImage().getScaledInstance(36, 36, Image.SCALE_SMOOTH)));
                     } else {
                         lblThumb.setIcon(cargarIcono("musica_icono", 28, 28));
@@ -1588,7 +1601,7 @@ public class MiniWindowsDesktop extends JFrame {
         scrollSpotify.setBorder(BorderFactory.createLineBorder(new Color(38, 38, 42), 1, true));
         scrollSpotify.getViewport().setBackground(new Color(18, 18, 18));
 
-        // Panel de Detalles Derecho
+        // Panel de Detalles Derecho Proporcional
         JPanel detailsPanel = new JPanel(new BorderLayout(10, 8));
         detailsPanel.setPreferredSize(new Dimension(280, 0));
         detailsPanel.setBackground(new Color(24, 24, 27));
@@ -1624,6 +1637,7 @@ public class MiniWindowsDesktop extends JFrame {
         JPanel infoCard = new JPanel(new BorderLayout(0, 6));
         infoCard.setOpaque(false);
 
+        // CONTENEDOR EN 2 FILAS ESTRICTAS
         JPanel headerTextPanel = new JPanel(new GridLayout(2, 1, 0, 2));
         headerTextPanel.setOpaque(false);
         headerTextPanel.setPreferredSize(new Dimension(240, 44));
@@ -1955,7 +1969,6 @@ public class MiniWindowsDesktop extends JFrame {
             }
         };
 
-        // Eventos de la barra de búsqueda en tiempo real
         searchBar.addKeyListener(new KeyAdapter() {
             @Override
             public void keyReleased(KeyEvent e) {
@@ -2007,8 +2020,9 @@ public class MiniWindowsDesktop extends JFrame {
                         + "• Tamaño: " + (sel.length() / 1024) + " KB\n"
                         + "• Ruta: " + sel.getAbsolutePath());
 
-                if (meta != null && meta.caratulaRuta != null && new File(meta.caratulaRuta).exists()) {
-                    ImageIcon img = new ImageIcon(meta.caratulaRuta);
+                File imgCaratula = (meta != null) ? resolverArchivoCaratula(dirMusica, meta.caratulaNombre) : null;
+                if (imgCaratula != null) {
+                    ImageIcon img = new ImageIcon(imgCaratula.getAbsolutePath());
                     Image scaled = img.getImage().getScaledInstance(140, 125, Image.SCALE_SMOOTH);
                     lblCaratula.setIcon(new ImageIcon(scaled));
                 } else {
@@ -2077,17 +2091,18 @@ public class MiniWindowsDesktop extends JFrame {
                 File audioDest = new File(dirMusica, archivoAudioSeleccionado[0].getName());
                 Files.copy(archivoAudioSeleccionado[0].toPath(), audioDest.toPath(), StandardCopyOption.REPLACE_EXISTING);
 
-                String rutaCaratula = null;
+                String nombreArchivoCaratula = null;
                 if (archivoCaratulaSeleccionada[0] != null) {
                     String extImg = obtenerExtension(archivoCaratulaSeleccionada[0].getName()).toLowerCase();
-                    File caratulaDest = new File(dirMusica, archivoAudioSeleccionado[0].getName() + "_cover." + extImg);
+                    String nombreImg = audioDest.getName() + "_cover." + extImg;
+                    File caratulaDest = new File(dirMusica, nombreImg);
                     Files.copy(archivoCaratulaSeleccionada[0].toPath(), caratulaDest.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    rutaCaratula = caratulaDest.getAbsolutePath();
+                    nombreArchivoCaratula = nombreImg; // Solo guarda el nombre relativo, no la ruta absoluta
                 }
 
                 String autor = txtAutorInput.getText().trim();
                 String album = txtAlbumInput.getText().trim();
-                mapaMetadatos.put(audioDest.getName(), new MetadataCancion(autor, album, desc, rutaCaratula));
+                mapaMetadatos.put(audioDest.getName(), new MetadataCancion(autor, album, desc, nombreArchivoCaratula));
                 guardarMetadatosMusica(dirMusica, mapaMetadatos);
 
                 filtrarMusica.run();
