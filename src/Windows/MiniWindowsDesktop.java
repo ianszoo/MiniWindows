@@ -17,7 +17,9 @@ import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
 import javax.swing.event.InternalFrameAdapter;
 import javax.swing.event.InternalFrameEvent;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableCellRenderer;
 import javax.swing.text.*;
 import javax.swing.tree.*;
 import javazoom.jl.decoder.Bitstream;
@@ -432,11 +434,9 @@ public class MiniWindowsDesktop extends JFrame {
     private void abrirEditor() { gestionarVentana("EDITOR", "Bloc de Notas - Editor con Formato", crearEditorReal(), 860, 560); }
     private void abrirVisor() { gestionarVentana("VISOR", "Visor de Imágenes", crearVisorReal(), 880, 600); }
     private void abrirCMD() { gestionarVentana("CMD", "Símbolo del Sistema (CMD)", crearCmdReal(), 720, 440); }
-    private void abrirReproductor() { gestionarVentana("REPRODUCTOR", "Media Player", crearReproductorReal(), 920, 580); }
-    private void abrirInsta() { gestionarVentana("INSTA", "INSTA+ Mobile", new InstaPanel(usuarioActual), 460, 750); 
-}
+    private void abrirReproductor() { gestionarVentana("REPRODUCTOR", "Media Player", crearReproductorReal(), 960, 600); }
+    private void abrirInsta() { gestionarVentana("INSTA", "INSTA+ - Red Social Integrada", new InstaPanel(usuarioActual), 460, 750); }
 
-    // Utilidad: Crea botones con estilo oscuro nativo sin fondos blancos en hover
     private JButton crearBotonPersonalizado(String texto, Color bgBase, Color bgHover) {
         JButton btn = new JButton(texto) {
             @Override
@@ -464,6 +464,12 @@ public class MiniWindowsDesktop extends JFrame {
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btn.setBorder(new EmptyBorder(6, 12, 6, 12));
         return btn;
+    }
+
+    private static String truncarTexto(String texto, int maxLen) {
+        if (texto == null) return "";
+        if (texto.length() <= maxLen) return texto;
+        return texto.substring(0, Math.max(0, maxLen - 3)) + "...";
     }
 
     // =========================================================================
@@ -615,13 +621,12 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 2. EDITOR DE TEXTO CON FORMATO (COMBOS OSCUROS CON ALTO CONTRASTE)
+    // 2. EDITOR DE TEXTO CON FORMATO
     // =========================================================================
     private JPanel crearEditorReal() {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(new Color(32, 32, 32));
 
-        // 1. LIENZO DEL EDITOR
         JTextPane textPane = new JTextPane();
         textPane.setFont(new Font("Consolas", Font.PLAIN, 15));
         textPane.setBackground(new Color(30, 30, 30));
@@ -642,7 +647,6 @@ public class MiniWindowsDesktop extends JFrame {
         scrollEditor.setBorder(null);
         scrollEditor.setBackground(new Color(30, 30, 30));
 
-        // 2. BARRA DE HERRAMIENTAS MODERNA
         JPanel topContainer = new JPanel(new BorderLayout());
         topContainer.setBackground(new Color(38, 38, 38));
 
@@ -654,14 +658,12 @@ public class MiniWindowsDesktop extends JFrame {
                 new EmptyBorder(6, 10, 6, 10)
         ));
 
-        // Selector de Fuentes del Sistema (Fondo Gris Oscuro y Texto Blanco)
         String[] fuentes = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
         JComboBox<String> cbFuentes = new JComboBox<>(fuentes);
         cbFuentes.setSelectedItem("Consolas");
         cbFuentes.setMaximumSize(new Dimension(160, 28));
         estilizarComboBoxOscuro(cbFuentes);
 
-        // Selector de Tamaños (Fondo Gris Oscuro y Texto Blanco)
         Integer[] tamanos = {10, 12, 14, 16, 18, 20, 24, 28, 32, 40};
         JComboBox<Integer> cbTamanos = new JComboBox<>(tamanos);
         cbTamanos.setSelectedItem(15);
@@ -778,7 +780,6 @@ public class MiniWindowsDesktop extends JFrame {
 
         topContainer.add(ribbon, BorderLayout.CENTER);
 
-        // 3. BARRA DE ESTADO INFERIOR
         JPanel statusBar = new JPanel(new BorderLayout());
         statusBar.setBackground(new Color(24, 24, 24));
         statusBar.setBorder(BorderFactory.createCompoundBorder(
@@ -815,7 +816,6 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // Estiliza un JComboBox para forzar fondo oscuro y texto blanco (Sin cuadro blanco)
     private void estilizarComboBoxOscuro(JComboBox<?> cb) {
         cb.setBackground(new Color(38, 38, 42));
         cb.setForeground(Color.WHITE);
@@ -993,7 +993,7 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 4. VISOR DE FOTOS (CON BOTÓN AGREGAR IMAGEN Y ELIMINAR SIN EMOJIS)
+    // 4. VISOR DE FOTOS
     // =========================================================================
     private JPanel crearVisorReal() {
         JPanel p = new JPanel(new BorderLayout());
@@ -1002,7 +1002,6 @@ public class MiniWindowsDesktop extends JFrame {
         Lista<File> listaFotos = new Lista<>();
         final int[] indexActual = {0};
 
-        // 1. Barra Superior con Título y Botones
         JPanel topBar = new JPanel(new BorderLayout());
         topBar.setBackground(new Color(32, 32, 36));
         topBar.setBorder(new EmptyBorder(8, 15, 8, 15));
@@ -1024,7 +1023,6 @@ public class MiniWindowsDesktop extends JFrame {
         topBar.add(panelBotonesTop, BorderLayout.EAST);
         p.add(topBar, BorderLayout.NORTH);
 
-        // 2. Lienzo Central
         JPanel centerContainer = new JPanel(new BorderLayout());
         centerContainer.setBackground(new Color(20, 20, 22));
 
@@ -1050,7 +1048,6 @@ public class MiniWindowsDesktop extends JFrame {
         centerContainer.add(panelRight, BorderLayout.EAST);
         p.add(centerContainer, BorderLayout.CENTER);
 
-        // 3. Carrete de Miniaturas Inferior
         JPanel stripThumbnails = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 8));
         stripThumbnails.setBackground(new Color(16, 16, 18));
 
@@ -1142,7 +1139,6 @@ public class MiniWindowsDesktop extends JFrame {
 
         recargarFotos.run();
 
-        // Botón Agregar Imagen
         btnAgregarFoto.addActionListener(e -> {
             JFileChooser fc = new JFileChooser();
             if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -1197,7 +1193,7 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 5. REPRODUCTOR DE MÚSICA CON FORMULARIO INTEGRADO Y CARÁTULA
+    // 5. REPRODUCTOR DE MÚSICA CON BUSCADOR EN TIEMPO REAL Y SPOTIFY VIEW
     // =========================================================================
     
     private static class MotorAudioPlayer {
@@ -1256,6 +1252,7 @@ public class MiniWindowsDesktop extends JFrame {
         }
 
         private synchronized void iniciarStreamDesdeOffset(long offset) throws Exception {
+            if (archivoActual == null) return;
             fis = new FileInputStream(archivoActual);
             if (offset > 0) {
                 fis.skip(offset);
@@ -1274,6 +1271,32 @@ public class MiniWindowsDesktop extends JFrame {
             });
             hiloReproductor.setDaemon(true);
             hiloReproductor.start();
+        }
+
+        public synchronized void buscarPosicion(double porcentaje) {
+            if (archivoActual == null) return;
+            porcentaje = Math.max(0.0, Math.min(1.0, porcentaje));
+            
+            if (isWav && clipWav != null && clipWav.isOpen()) {
+                long targetMicros = (long) (porcentaje * clipWav.getMicrosecondLength());
+                clipWav.setMicrosecondPosition(targetMicros);
+                if (isPaused) microsegundosWavPausa = targetMicros;
+            } else {
+                long targetBytes = (long) (porcentaje * totalBytes);
+                this.bytesPausados = targetBytes;
+                this.segundosTranscurridos = (int) (porcentaje * duracionTotalSegundos);
+
+                if (isPlaying && !isPaused) {
+                    try {
+                        if (playerJLayer != null) playerJLayer.close();
+                        if (bis != null) bis.close();
+                        if (fis != null) fis.close();
+                        iniciarStreamDesdeOffset(targetBytes);
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            }
         }
 
         public synchronized void pausar() {
@@ -1362,15 +1385,16 @@ public class MiniWindowsDesktop extends JFrame {
 
     private final MotorAudioPlayer motorAudio = new MotorAudioPlayer();
 
-    // Metadatos con Carátula Asociada
     private static class MetadataCancion implements Serializable {
-        private static final long serialVersionUID = 1L;
+        private static final long serialVersionUID = 2L;
         String autor;
+        String album;
         String descripcion;
         String caratulaRuta;
 
-        public MetadataCancion(String autor, String descripcion, String caratulaRuta) {
+        public MetadataCancion(String autor, String album, String descripcion, String caratulaRuta) {
             this.autor = autor;
+            this.album = album;
             this.descripcion = descripcion;
             this.caratulaRuta = caratulaRuta;
         }
@@ -1394,9 +1418,15 @@ public class MiniWindowsDesktop extends JFrame {
         } catch (Exception ignored) {}
     }
 
+    private String formatearSegundos(int segs) {
+        int m = segs / 60;
+        int s = segs % 60;
+        return String.format("%d:%02d", m, s);
+    }
+
     private JPanel crearReproductorReal() {
         JPanel p = new JPanel(new BorderLayout());
-        p.setBackground(new Color(32, 33, 36));
+        p.setBackground(new Color(18, 18, 18));
 
         File dirMusica = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Música");
         HashMap<String, MetadataCancion> mapaMetadatos = cargarMetadatosMusica(dirMusica);
@@ -1404,8 +1434,8 @@ public class MiniWindowsDesktop extends JFrame {
         // 1. SIDEBAR IZQUIERDO
         JPanel sidebar = new JPanel(new BorderLayout());
         sidebar.setPreferredSize(new Dimension(200, 0));
-        sidebar.setBackground(new Color(24, 25, 28));
-        sidebar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(45, 46, 50)));
+        sidebar.setBackground(new Color(18, 18, 20));
+        sidebar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(38, 38, 42)));
 
         JPanel topSidebar = new JPanel(new BorderLayout(5, 8));
         topSidebar.setOpaque(false);
@@ -1417,15 +1447,16 @@ public class MiniWindowsDesktop extends JFrame {
         lblLogo.setIcon(cargarIcono("musica_icono", 20, 20));
         topSidebar.add(lblLogo, BorderLayout.NORTH);
 
-        JTextField searchBar = new JTextField();
+        // BUSCADOR EN TIEMPO REAL CON HINT
+        JTextField searchBar = new JTextField("Buscar canción, artista...");
         searchBar.setPreferredSize(new Dimension(170, 28));
-        searchBar.setBackground(new Color(36, 37, 42));
-        searchBar.setForeground(Color.WHITE);
+        searchBar.setBackground(new Color(30, 30, 34));
+        searchBar.setForeground(new Color(150, 150, 150));
         searchBar.setCaretColor(Color.WHITE);
         searchBar.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         searchBar.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(60, 62, 68), 1, true),
-                BorderFactory.createEmptyBorder(2, 6, 2, 6)
+                BorderFactory.createLineBorder(new Color(50, 52, 58), 1, true),
+                new EmptyBorder(2, 6, 2, 6)
         ));
         topSidebar.add(searchBar, BorderLayout.SOUTH);
         sidebar.add(topSidebar, BorderLayout.NORTH);
@@ -1450,47 +1481,120 @@ public class MiniWindowsDesktop extends JFrame {
         JPanel centerCards = new JPanel(cardsCenter);
         centerCards.setOpaque(false);
 
-        // --- TARJETA 1: BIBLIOTECA REGULAR ---
+        // --- TARJETA 1: TABLA ESTILO SPOTIFY ---
         JPanel vistaBiblioteca = new JPanel(new BorderLayout(15, 15));
-        vistaBiblioteca.setBackground(new Color(32, 33, 36));
-        vistaBiblioteca.setBorder(new EmptyBorder(18, 20, 10, 20));
+        vistaBiblioteca.setBackground(new Color(18, 18, 18));
+        vistaBiblioteca.setBorder(new EmptyBorder(16, 20, 10, 20));
 
         JLabel lblHeader = new JLabel("Música");
         lblHeader.setFont(new Font("Segoe UI", Font.BOLD, 26));
         lblHeader.setForeground(Color.WHITE);
         vistaBiblioteca.add(lblHeader, BorderLayout.NORTH);
 
-        DefaultListModel<File> playlistModel = new DefaultListModel<>();
-        JList<File> playlist = new JList<>(playlistModel);
-        playlist.setBackground(new Color(24, 25, 28));
-        playlist.setForeground(Color.WHITE);
-        playlist.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        playlist.setSelectionBackground(new Color(234, 88, 12));
-        playlist.setSelectionForeground(Color.WHITE);
-        playlist.setFixedCellHeight(34);
+        String[] columnas = {"#", "Título", "Álbum", "Duración"};
+        DefaultTableModel modelTablaSpotify = new DefaultTableModel(columnas, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
 
-        playlist.setCellRenderer(new DefaultListCellRenderer() {
+        JTable tableSpotify = new JTable(modelTablaSpotify);
+        tableSpotify.setBackground(new Color(18, 18, 18));
+        tableSpotify.setForeground(Color.WHITE);
+        tableSpotify.setRowHeight(48);
+        tableSpotify.setShowGrid(false);
+        tableSpotify.setIntercellSpacing(new Dimension(0, 0));
+        tableSpotify.setSelectionBackground(new Color(40, 40, 44));
+        tableSpotify.setSelectionForeground(Color.WHITE);
+
+        tableSpotify.getTableHeader().setDefaultRenderer(new DefaultTableCellRenderer() {
             @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
-                JLabel lbl = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                lbl.setBorder(new EmptyBorder(4, 10, 4, 10));
-                if (value instanceof File) {
-                    lbl.setText("  " + ((File) value).getName());
-                }
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                JLabel lbl = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                lbl.setBackground(new Color(24, 24, 27));
+                lbl.setForeground(new Color(180, 180, 180));
+                lbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                lbl.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(45, 45, 50)),
+                        new EmptyBorder(6, 8, 6, 8)
+                ));
                 return lbl;
             }
         });
 
-        JScrollPane scrollPlaylist = new JScrollPane(playlist);
-        scrollPlaylist.setBorder(BorderFactory.createLineBorder(new Color(50, 52, 58), 1, true));
+        tableSpotify.getColumnModel().getColumn(0).setMaxWidth(35);
+        tableSpotify.getColumnModel().getColumn(2).setPreferredWidth(140);
+        tableSpotify.getColumnModel().getColumn(3).setMaxWidth(75);
 
-        // Panel de Detalles
-        JPanel detailsPanel = new JPanel(new BorderLayout(12, 12));
+        tableSpotify.getColumnModel().getColumn(1).setCellRenderer(new TableCellRenderer() {
+            private final JPanel cell = new JPanel(new BorderLayout(8, 0));
+            private final JLabel lblThumb = new JLabel();
+            private final JLabel lblTrack = new JLabel();
+            private final JLabel lblArtist = new JLabel();
+            private final JPanel textPanel = new JPanel(new GridLayout(2, 1, 0, 1));
+
+            {
+                cell.setOpaque(true);
+                lblThumb.setPreferredSize(new Dimension(36, 36));
+                lblTrack.setFont(new Font("Segoe UI", Font.BOLD, 13));
+                lblArtist.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+                textPanel.setOpaque(false);
+                textPanel.add(lblTrack);
+                textPanel.add(lblArtist);
+                cell.add(lblThumb, BorderLayout.WEST);
+                cell.add(textPanel, BorderLayout.CENTER);
+                cell.setBorder(new EmptyBorder(4, 6, 4, 6));
+            }
+
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                if (value instanceof File) {
+                    File f = (File) value;
+                    MetadataCancion meta = mapaMetadatos.get(f.getName());
+                    String tit = f.getName().replaceAll("(?i)\\.(mp3|wav|m4a|au)$", "");
+                    String art = (meta != null && !meta.autor.isEmpty()) ? meta.autor : "Desconocido";
+
+                    lblTrack.setText(truncarTexto(tit, 26));
+                    lblArtist.setText(truncarTexto(art, 22));
+                    lblTrack.setForeground(Color.WHITE);
+                    lblArtist.setForeground(new Color(160, 160, 160));
+
+                    if (meta != null && meta.caratulaRuta != null && new File(meta.caratulaRuta).exists()) {
+                        ImageIcon raw = new ImageIcon(meta.caratulaRuta);
+                        lblThumb.setIcon(new ImageIcon(raw.getImage().getScaledInstance(36, 36, Image.SCALE_SMOOTH)));
+                    } else {
+                        lblThumb.setIcon(cargarIcono("musica_icono", 28, 28));
+                    }
+                }
+                cell.setBackground(isSelected ? new Color(42, 42, 46) : new Color(18, 18, 18));
+                return cell;
+            }
+        });
+
+        DefaultTableCellRenderer renderSimple = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                JLabel lbl = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                lbl.setBackground(isSelected ? new Color(42, 42, 46) : new Color(18, 18, 18));
+                lbl.setForeground(new Color(179, 179, 179));
+                lbl.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                lbl.setBorder(new EmptyBorder(0, 8, 0, 8));
+                return lbl;
+            }
+        };
+        tableSpotify.getColumnModel().getColumn(0).setCellRenderer(renderSimple);
+        tableSpotify.getColumnModel().getColumn(2).setCellRenderer(renderSimple);
+        tableSpotify.getColumnModel().getColumn(3).setCellRenderer(renderSimple);
+
+        JScrollPane scrollSpotify = new JScrollPane(tableSpotify);
+        scrollSpotify.setBorder(BorderFactory.createLineBorder(new Color(38, 38, 42), 1, true));
+        scrollSpotify.getViewport().setBackground(new Color(18, 18, 18));
+
+        // Panel de Detalles Derecho
+        JPanel detailsPanel = new JPanel(new BorderLayout(10, 8));
         detailsPanel.setPreferredSize(new Dimension(280, 0));
-        detailsPanel.setBackground(new Color(24, 25, 28));
+        detailsPanel.setBackground(new Color(24, 24, 27));
         detailsPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(50, 52, 58), 1, true),
-                new EmptyBorder(15, 15, 15, 15)
+                BorderFactory.createLineBorder(new Color(40, 40, 45), 1, true),
+                new EmptyBorder(12, 14, 12, 14)
         ));
 
         JLabel lblCaratula = new JLabel("", SwingConstants.CENTER) {
@@ -1514,28 +1618,54 @@ public class MiniWindowsDesktop extends JFrame {
                 }
             }
         };
-        lblCaratula.setPreferredSize(new Dimension(180, 160));
+        lblCaratula.setPreferredSize(new Dimension(140, 125));
         detailsPanel.add(lblCaratula, BorderLayout.NORTH);
 
-        JTextArea txtDescripcion = new JTextArea("Seleccione una canción de la lista para reproducir.");
+        JPanel infoCard = new JPanel(new BorderLayout(0, 6));
+        infoCard.setOpaque(false);
+
+        JPanel headerTextPanel = new JPanel(new GridLayout(2, 1, 0, 2));
+        headerTextPanel.setOpaque(false);
+        headerTextPanel.setPreferredSize(new Dimension(240, 44));
+
+        JLabel lblSongTitle = new JLabel("Selecciona una canción");
+        lblSongTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lblSongTitle.setForeground(Color.WHITE);
+
+        JLabel lblSongSubtitle = new JLabel("--");
+        lblSongSubtitle.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lblSongSubtitle.setForeground(new Color(160, 160, 160));
+
+        headerTextPanel.add(lblSongTitle);
+        headerTextPanel.add(lblSongSubtitle);
+        infoCard.add(headerTextPanel, BorderLayout.NORTH);
+
+        JTextArea txtDescripcion = new JTextArea("Aquí aparecerá la descripción personalizada.");
         txtDescripcion.setEditable(false);
         txtDescripcion.setLineWrap(true);
         txtDescripcion.setWrapStyleWord(true);
-        txtDescripcion.setBackground(new Color(24, 25, 28));
-        txtDescripcion.setForeground(new Color(203, 213, 225));
+        txtDescripcion.setBackground(new Color(18, 18, 20));
+        txtDescripcion.setForeground(new Color(225, 230, 240));
         txtDescripcion.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        detailsPanel.add(new JScrollPane(txtDescripcion), BorderLayout.CENTER);
+        txtDescripcion.setBorder(new EmptyBorder(8, 8, 8, 8));
 
-        JSplitPane splitCenter = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scrollPlaylist, detailsPanel);
-        splitCenter.setDividerLocation(380);
+        JScrollPane scrollDescPanel = new JScrollPane(txtDescripcion);
+        scrollDescPanel.setBorder(BorderFactory.createLineBorder(new Color(45, 45, 50), 1, true));
+        scrollDescPanel.getViewport().setBackground(new Color(18, 18, 20));
+        infoCard.add(scrollDescPanel, BorderLayout.CENTER);
+
+        detailsPanel.add(infoCard, BorderLayout.CENTER);
+
+        JSplitPane splitCenter = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scrollSpotify, detailsPanel);
+        splitCenter.setDividerLocation(450);
         splitCenter.setOpaque(false);
         splitCenter.setBorder(null);
 
         vistaBiblioteca.add(splitCenter, BorderLayout.CENTER);
 
-        // --- TARJETA 2: FORMULARIO INTEGRADO PARA AGREGAR CANCIÓN ---
+        // --- TARJETA 2: FORMULARIO AGREGAR CANCIÓN ---
         JPanel vistaAgregar = new JPanel(new BorderLayout(15, 15));
-        vistaAgregar.setBackground(new Color(32, 33, 36));
+        vistaAgregar.setBackground(new Color(24, 24, 27));
         vistaAgregar.setBorder(new EmptyBorder(18, 25, 18, 25));
 
         JLabel lblHeaderAdd = new JLabel("Agregar Nueva Canción a la Biblioteca");
@@ -1544,13 +1674,13 @@ public class MiniWindowsDesktop extends JFrame {
         vistaAgregar.add(lblHeaderAdd, BorderLayout.NORTH);
 
         JPanel formContent = new JPanel(new GridLayout(1, 2, 20, 0));
-        formContent.setBackground(new Color(24, 25, 28));
+        formContent.setBackground(new Color(30, 30, 34));
         formContent.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(50, 52, 58), 1, true),
                 new EmptyBorder(20, 20, 20, 20)
         ));
 
-        // Columna Izquierda: Carátula
+        // Columna Izquierda
         JPanel colCaratula = new JPanel(new BorderLayout(10, 10));
         colCaratula.setOpaque(false);
 
@@ -1561,9 +1691,9 @@ public class MiniWindowsDesktop extends JFrame {
         JLabel lblPreviewCaratula = new JLabel("Sin Carátula", SwingConstants.CENTER);
         lblPreviewCaratula.setPreferredSize(new Dimension(180, 180));
         lblPreviewCaratula.setOpaque(true);
-        lblPreviewCaratula.setBackground(new Color(35, 36, 40));
+        lblPreviewCaratula.setBackground(new Color(20, 20, 22));
         lblPreviewCaratula.setForeground(TEXT_MUTED);
-        lblPreviewCaratula.setBorder(BorderFactory.createLineBorder(new Color(60, 62, 68), 1, true));
+        lblPreviewCaratula.setBorder(BorderFactory.createLineBorder(new Color(50, 52, 58), 1, true));
 
         final File[] archivoCaratulaSeleccionada = {null};
         final File[] archivoAudioSeleccionado = {null};
@@ -1591,8 +1721,8 @@ public class MiniWindowsDesktop extends JFrame {
         colCaratula.add(lblPreviewCaratula, BorderLayout.CENTER);
         colCaratula.add(btnBuscarCaratula, BorderLayout.SOUTH);
 
-        // Columna Derecha: Audio, Autor y Descripción
-        JPanel colDatos = new JPanel(new GridLayout(7, 1, 4, 4));
+        // Columna Derecha
+        JPanel colDatos = new JPanel(new GridLayout(9, 1, 4, 3));
         colDatos.setOpaque(false);
 
         JLabel lblAudioSel = new JLabel("Ningún archivo de audio seleccionado");
@@ -1621,29 +1751,42 @@ public class MiniWindowsDesktop extends JFrame {
         lblTitAutor.setFont(new Font("Segoe UI", Font.BOLD, 12));
 
         JTextField txtAutorInput = new JTextField();
-        txtAutorInput.setBackground(new Color(36, 37, 42));
+        txtAutorInput.setBackground(new Color(20, 20, 22));
         txtAutorInput.setForeground(Color.WHITE);
         txtAutorInput.setCaretColor(Color.WHITE);
         txtAutorInput.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(60, 62, 68), 1, true),
+                BorderFactory.createLineBorder(new Color(50, 52, 58), 1, true),
                 new EmptyBorder(4, 6, 4, 6)
         ));
 
-        JLabel lblTitDesc = new JLabel("Descripción breve:");
+        JLabel lblTitAlbum = new JLabel("Álbum:");
+        lblTitAlbum.setForeground(Color.WHITE);
+        lblTitAlbum.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        JTextField txtAlbumInput = new JTextField();
+        txtAlbumInput.setBackground(new Color(20, 20, 22));
+        txtAlbumInput.setForeground(Color.WHITE);
+        txtAlbumInput.setCaretColor(Color.WHITE);
+        txtAlbumInput.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(50, 52, 58), 1, true),
+                new EmptyBorder(4, 6, 4, 6)
+        ));
+
+        JLabel lblTitDesc = new JLabel("Descripción breve (máximo 50 palabras):");
         lblTitDesc.setForeground(Color.WHITE);
         lblTitDesc.setFont(new Font("Segoe UI", Font.BOLD, 12));
 
         JTextArea txtDescInput = new JTextArea(2, 20);
         txtDescInput.setLineWrap(true);
         txtDescInput.setWrapStyleWord(true);
-        txtDescInput.setBackground(new Color(36, 37, 42));
+        txtDescInput.setBackground(new Color(20, 20, 22));
         txtDescInput.setForeground(Color.WHITE);
         txtDescInput.setCaretColor(Color.WHITE);
 
         JScrollPane scrollDesc = new JScrollPane(txtDescInput);
-        scrollDesc.setBorder(BorderFactory.createLineBorder(new Color(60, 62, 68), 1, true));
-        scrollDesc.setBackground(new Color(36, 37, 42));
-        scrollDesc.getViewport().setBackground(new Color(36, 37, 42));
+        scrollDesc.setBorder(BorderFactory.createLineBorder(new Color(50, 52, 58), 1, true));
+        scrollDesc.setBackground(new Color(20, 20, 22));
+        scrollDesc.getViewport().setBackground(new Color(20, 20, 22));
 
         JLabel lblConteoPalabras = new JLabel("Palabras: 0 / 50");
         lblConteoPalabras.setForeground(TEXT_MUTED);
@@ -1664,6 +1807,8 @@ public class MiniWindowsDesktop extends JFrame {
         colDatos.add(lblAudioSel);
         colDatos.add(lblTitAutor);
         colDatos.add(txtAutorInput);
+        colDatos.add(lblTitAlbum);
+        colDatos.add(txtAlbumInput);
         colDatos.add(lblTitDesc);
         colDatos.add(scrollDesc);
         colDatos.add(lblConteoPalabras);
@@ -1672,7 +1817,6 @@ public class MiniWindowsDesktop extends JFrame {
         formContent.add(colDatos);
         vistaAgregar.add(formContent, BorderLayout.CENTER);
 
-        // Botones Inferiores del Formulario
         JPanel formBotones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 5));
         formBotones.setOpaque(false);
 
@@ -1689,7 +1833,7 @@ public class MiniWindowsDesktop extends JFrame {
 
         // 3. BARRA INFERIOR DE REPRODUCCIÓN
         JPanel bottomBar = new JPanel(new BorderLayout(10, 4));
-        bottomBar.setBackground(new Color(18, 19, 21));
+        bottomBar.setBackground(new Color(18, 18, 20));
         bottomBar.setBorder(new EmptyBorder(6, 18, 8, 18));
 
         JPanel progressPanel = new JPanel(new BorderLayout(10, 0));
@@ -1717,7 +1861,7 @@ public class MiniWindowsDesktop extends JFrame {
         JLabel lblTrackTitle = new JLabel("Sin pista seleccionada");
         lblTrackTitle.setForeground(Color.WHITE);
         lblTrackTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        lblTrackTitle.setPreferredSize(new Dimension(220, 36));
+        lblTrackTitle.setPreferredSize(new Dimension(240, 36));
         controlRow.add(lblTrackTitle, BorderLayout.WEST);
 
         JPanel centerBtns = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
@@ -1763,45 +1907,141 @@ public class MiniWindowsDesktop extends JFrame {
         bottomBar.add(controlRow, BorderLayout.CENTER);
         p.add(bottomBar, BorderLayout.SOUTH);
 
-        // Recargar Playlist y mostrar carátula
-        Runnable recargarMusica = () -> {
-            playlistModel.clear();
+        // FUNCIÓN CENTRAL PARA FILTRAR EN TIEMPO REAL
+        Runnable filtrarMusica = () -> {
+            String rawQuery = searchBar.getText().trim().toLowerCase();
+            String q = rawQuery.equals("buscar canción, artista...") ? "" : rawQuery;
+
+            modelTablaSpotify.setRowCount(0);
             File[] canciones = dirMusica.listFiles((dir, name) -> {
                 String n = name.toLowerCase();
                 return n.endsWith(".mp3") || n.endsWith(".wav");
             });
+
             if (canciones != null) {
-                for (File c : canciones) playlistModel.addElement(c);
+                int rowNum = 1;
+                for (File f : canciones) {
+                    MetadataCancion meta = mapaMetadatos.get(f.getName());
+                    String autor = (meta != null && !meta.autor.isEmpty()) ? meta.autor : "Desconocido";
+                    String alb = (meta != null && meta.album != null && !meta.album.isEmpty()) ? meta.album : "Sencillo";
+                    String titLimpio = f.getName().replaceAll("(?i)\\.(mp3|wav|m4a|au)$", "");
+
+                    boolean coincide = q.isEmpty()
+                            || titLimpio.toLowerCase().contains(q)
+                            || autor.toLowerCase().contains(q)
+                            || alb.toLowerCase().contains(q)
+                            || f.getName().toLowerCase().contains(q);
+
+                    if (coincide) {
+                        int durSeg = 0;
+                        if (f.getName().toLowerCase().endsWith(".mp3")) {
+                            try (FileInputStream fis = new FileInputStream(f)) {
+                                Bitstream bs = new Bitstream(fis);
+                                Header h = bs.readFrame();
+                                if (h != null) durSeg = (int) (h.total_ms((int) f.length()) / 1000);
+                                bs.close();
+                            } catch (Exception ignored) {}
+                        }
+                        if (durSeg <= 0) durSeg = Math.max(30, (int) (f.length() / (192 * 1024 / 8)));
+
+                        modelTablaSpotify.addRow(new Object[]{
+                            String.valueOf(rowNum++),
+                            f,
+                            alb,
+                            formatearSegundos(durSeg)
+                        });
+                    }
+                }
             }
         };
-        recargarMusica.run();
 
-        playlist.addListSelectionListener(e -> {
-            File sel = playlist.getSelectedValue();
-            if (sel != null) {
+        // Eventos de la barra de búsqueda en tiempo real
+        searchBar.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                filtrarMusica.run();
+            }
+        });
+
+        searchBar.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                if (searchBar.getText().equals("Buscar canción, artista...")) {
+                    searchBar.setText("");
+                    searchBar.setForeground(Color.WHITE);
+                }
+            }
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (searchBar.getText().trim().isEmpty()) {
+                    searchBar.setText("Buscar canción, artista...");
+                    searchBar.setForeground(new Color(150, 150, 150));
+                    filtrarMusica.run();
+                }
+            }
+        });
+
+        filtrarMusica.run();
+
+        // Actualizar detalles con dos filas nativas
+        tableSpotify.getSelectionModel().addListSelectionListener(e -> {
+            int row = tableSpotify.getSelectedRow();
+            if (row != -1 && row < modelTablaSpotify.getRowCount()) {
+                File sel = (File) modelTablaSpotify.getValueAt(row, 1);
                 lblTrackTitle.setText(sel.getName());
                 MetadataCancion meta = mapaMetadatos.get(sel.getName());
                 String autor = (meta != null && !meta.autor.isEmpty()) ? meta.autor : "Desconocido";
-                String desc = (meta != null && !meta.descripcion.isEmpty()) ? meta.descripcion : "Sin descripción personalizada.";
+                String album = (meta != null && meta.album != null && !meta.album.isEmpty()) ? meta.album : "Sencillo";
+                String desc = (meta != null && !meta.descripcion.isEmpty()) ? meta.descripcion : "Sin descripción personalizada disponible.";
+
+                String titCompleto = sel.getName().replaceAll("(?i)\\.(mp3|wav|m4a|au)$", "");
+                
+                lblSongTitle.setText(truncarTexto(titCompleto, 20));
+                lblSongSubtitle.setText(truncarTexto(autor, 14) + " • " + truncarTexto(album, 14));
+                lblSongTitle.setToolTipText(titCompleto);
+                lblSongSubtitle.setToolTipText(autor + " (" + album + ")");
+
+                txtDescripcion.setText("[ DESCRIPCIÓN ]\n" + desc + "\n\n"
+                        + "[ DETALLES ]\n"
+                        + "• Formato: " + obtenerExtension(sel.getName()) + "\n"
+                        + "• Tamaño: " + (sel.length() / 1024) + " KB\n"
+                        + "• Ruta: " + sel.getAbsolutePath());
 
                 if (meta != null && meta.caratulaRuta != null && new File(meta.caratulaRuta).exists()) {
                     ImageIcon img = new ImageIcon(meta.caratulaRuta);
-                    Image scaled = img.getImage().getScaledInstance(180, 160, Image.SCALE_SMOOTH);
+                    Image scaled = img.getImage().getScaledInstance(140, 125, Image.SCALE_SMOOTH);
                     lblCaratula.setIcon(new ImageIcon(scaled));
                 } else {
                     lblCaratula.setIcon(null);
                 }
-
-                txtDescripcion.setText("Título: " + sel.getName() + "\n"
-                        + "Autor/Artista: " + autor + "\n\n"
-                        + "Descripción:\n" + desc + "\n\n"
-                        + "Formato: Audio " + obtenerExtension(sel.getName()) + "\n"
-                        + "Tamaño: " + (sel.length() / 1024) + " KB\n"
-                        + "Ruta: " + sel.getAbsolutePath());
             }
         });
 
-        // Eventos del Sidebar
+        tableSpotify.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int row = tableSpotify.getSelectedRow();
+                    if (row != -1) {
+                        File sel = (File) modelTablaSpotify.getValueAt(row, 1);
+                        new Thread(() -> {
+                            try {
+                                motorAudio.reproducir(sel);
+                                SwingUtilities.invokeLater(() -> {
+                                    btnPlay.setText("PAUSE");
+                                    btnPlay.repaint();
+                                    lblTrackTitle.setText(sel.getName());
+                                    lblTimeTotal.setText(formatearSegundos(motorAudio.getDuracionTotalSegundos()));
+                                });
+                            } catch (Exception ex) {
+                                ex.printStackTrace();
+                            }
+                        }).start();
+                    }
+                }
+            }
+        });
+
         btnBiblioteca.addActionListener(e -> cardsCenter.show(centerCards, "BIBLIOTECA"));
 
         btnAgregarAudio.addActionListener(e -> {
@@ -1812,6 +2052,7 @@ public class MiniWindowsDesktop extends JFrame {
             lblPreviewCaratula.setIcon(null);
             lblPreviewCaratula.setText("Sin Carátula");
             txtAutorInput.setText("");
+            txtAlbumInput.setText("");
             txtDescInput.setText("");
             lblConteoPalabras.setText("Palabras: 0 / 50");
             cardsCenter.show(centerCards, "AGREGAR");
@@ -1845,10 +2086,11 @@ public class MiniWindowsDesktop extends JFrame {
                 }
 
                 String autor = txtAutorInput.getText().trim();
-                mapaMetadatos.put(audioDest.getName(), new MetadataCancion(autor, desc, rutaCaratula));
+                String album = txtAlbumInput.getText().trim();
+                mapaMetadatos.put(audioDest.getName(), new MetadataCancion(autor, album, desc, rutaCaratula));
                 guardarMetadatosMusica(dirMusica, mapaMetadatos);
 
-                recargarMusica.run();
+                filtrarMusica.run();
                 cardsCenter.show(centerCards, "BIBLIOTECA");
                 JOptionPane.showMessageDialog(this, "¡Canción agregada con éxito a la biblioteca!");
             } catch (Exception ex) {
@@ -1858,10 +2100,38 @@ public class MiniWindowsDesktop extends JFrame {
 
         btnAbrirCarpeta.addActionListener(e -> abrirExplorador(dirMusica));
 
-        // Hilo de Tiempo
+        final boolean[] isSeeking = {false};
+
+        progressBar.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                isSeeking[0] = true;
+                actualizarScrub(e);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                actualizarScrub(e);
+                double pct = progressBar.getValue() / 100.0;
+                motorAudio.buscarPosicion(pct);
+                isSeeking[0] = false;
+            }
+
+            private void actualizarScrub(MouseEvent e) {
+                int mouseX = e.getX();
+                int width = progressBar.getWidth();
+                if (width > 0) {
+                    double pct = Math.max(0.0, Math.min(1.0, (double) mouseX / width));
+                    progressBar.setValue((int) (pct * 100));
+                    int curSec = (int) (pct * motorAudio.getDuracionTotalSegundos());
+                    lblTimeCur.setText(formatearSegundos(curSec));
+                }
+            }
+        });
+
         Thread hiloProgreso = new Thread(() -> {
             while (true) {
-                if (motorAudio.estaReproduciendo() && !motorAudio.estaPausado()) {
+                if (!isSeeking[0] && motorAudio.estaReproduciendo() && !motorAudio.estaPausado()) {
                     motorAudio.tickSegundo();
                     int curSec = motorAudio.getSegundosTranscurridos();
                     int totSec = motorAudio.getDuracionTotalSegundos();
@@ -1869,8 +2139,8 @@ public class MiniWindowsDesktop extends JFrame {
 
                     SwingUtilities.invokeLater(() -> {
                         progressBar.setValue(Math.min(100, prog));
-                        lblTimeCur.setText(String.format("%02d:%02d", curSec / 60, curSec % 60));
-                        lblTimeTotal.setText(String.format("%02d:%02d", totSec / 60, totSec % 60));
+                        lblTimeCur.setText(formatearSegundos(curSec));
+                        lblTimeTotal.setText(formatearSegundos(totSec));
                     });
                 }
                 try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
@@ -1880,18 +2150,18 @@ public class MiniWindowsDesktop extends JFrame {
         hiloProgreso.start();
 
         btnPlay.addActionListener(e -> {
-            File sel = playlist.getSelectedValue();
-            if (sel == null && playlistModel.getSize() > 0) {
-                playlist.setSelectedIndex(0);
-                sel = playlist.getSelectedValue();
+            int row = tableSpotify.getSelectedRow();
+            if (row == -1 && modelTablaSpotify.getRowCount() > 0) {
+                tableSpotify.setRowSelectionInterval(0, 0);
+                row = 0;
             }
 
-            if (sel == null) {
+            if (row == -1) {
                 JOptionPane.showMessageDialog(this, "Agregue o seleccione un archivo de audio primero.");
                 return;
             }
 
-            File archivoFinal = sel;
+            File archivoFinal = (File) modelTablaSpotify.getValueAt(row, 1);
 
             if (motorAudio.estaReproduciendo()) {
                 motorAudio.pausar();
@@ -1914,8 +2184,7 @@ public class MiniWindowsDesktop extends JFrame {
                         btnPlay.setText("PAUSE");
                         btnPlay.repaint();
                         lblTrackTitle.setText(archivoFinal.getName());
-                        int tot = motorAudio.getDuracionTotalSegundos();
-                        lblTimeTotal.setText(String.format("%02d:%02d", tot / 60, tot % 60));
+                        lblTimeTotal.setText(formatearSegundos(motorAudio.getDuracionTotalSegundos()));
                     });
                 } catch (Exception ex) {
                     ex.printStackTrace();
@@ -1935,11 +2204,11 @@ public class MiniWindowsDesktop extends JFrame {
         });
 
         btnPrev.addActionListener(e -> {
-            int total = playlistModel.getSize();
+            int total = modelTablaSpotify.getRowCount();
             if (total > 0) {
-                int idx = playlist.getSelectedIndex();
-                int anterior = (idx - 1 + total) % total;
-                playlist.setSelectedIndex(anterior);
+                int row = tableSpotify.getSelectedRow();
+                int anterior = (row - 1 + total) % total;
+                tableSpotify.setRowSelectionInterval(anterior, anterior);
                 if (motorAudio.estaReproduciendo()) {
                     motorAudio.detener();
                 }
@@ -1948,11 +2217,11 @@ public class MiniWindowsDesktop extends JFrame {
         });
 
         btnNext.addActionListener(e -> {
-            int total = playlistModel.getSize();
+            int total = modelTablaSpotify.getRowCount();
             if (total > 0) {
-                int idx = playlist.getSelectedIndex();
-                int siguiente = (idx + 1) % total;
-                playlist.setSelectedIndex(siguiente);
+                int row = tableSpotify.getSelectedRow();
+                int siguiente = (row + 1) % total;
+                tableSpotify.setRowSelectionInterval(siguiente, siguiente);
                 if (motorAudio.estaReproduciendo()) {
                     motorAudio.detener();
                 }
@@ -1963,7 +2232,6 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // Botones del Sidebar
     private JButton crearBotonSidebarItem(String texto, boolean isSelected) {
         JButton btn = new JButton(texto) {
             @Override
@@ -1972,7 +2240,7 @@ public class MiniWindowsDesktop extends JFrame {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
                 if (isSelected) {
-                    g2.setColor(new Color(42, 45, 52));
+                    g2.setColor(new Color(36, 36, 40));
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
                     g2.setColor(new Color(234, 88, 12));
                     g2.fillRect(0, 4, 3, getHeight() - 8);
@@ -1997,7 +2265,6 @@ public class MiniWindowsDesktop extends JFrame {
         return btn;
     }
 
-    // Botones Vectoriales
     private JButton crearBotonVectorial(int tipo) {
         JButton btn = new JButton() {
             @Override
@@ -2010,17 +2277,17 @@ public class MiniWindowsDesktop extends JFrame {
                 }
                 g2.setColor(Color.WHITE);
 
-                if (tipo == 1) { // Prev
+                if (tipo == 1) {
                     g2.fillRect(10, 10, 2, 12);
                     int[] x = {22, 22, 13};
                     int[] y = {9, 23, 16};
                     g2.fillPolygon(x, y, 3);
-                } else if (tipo == 2) { // Next
+                } else if (tipo == 2) {
                     int[] x = {10, 10, 19};
                     int[] y = {9, 23, 16};
                     g2.fillPolygon(x, y, 3);
                     g2.fillRect(20, 10, 2, 12);
-                } else if (tipo == 3) { // Stop
+                } else if (tipo == 3) {
                     g2.fillRect(11, 11, 10, 10);
                 }
                 g2.dispose();
