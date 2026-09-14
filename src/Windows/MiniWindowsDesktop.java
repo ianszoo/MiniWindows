@@ -7,9 +7,12 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Stack;
 import javax.sound.sampled.*;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -17,6 +20,7 @@ import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
 import javax.swing.event.InternalFrameAdapter;
 import javax.swing.event.InternalFrameEvent;
+import javax.swing.plaf.basic.BasicInternalFrameUI;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
@@ -38,6 +42,10 @@ public class MiniWindowsDesktop extends JFrame {
 
     // Registro de Ventanas Abiertas
     private final Map<String, JInternalFrame> ventanasAbiertas = new HashMap<>();
+
+    // Portapapeles del Explorador de Archivos
+    private File archivoPortapapeles = null;
+    private boolean esOperacionCortar = false;
 
     // Paleta de Colores Windows Dark Modern
     private final Color TASKBAR_COLOR   = new Color(15, 23, 42, 245);
@@ -119,8 +127,8 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
-    // GESTIÓN DE VENTANAS CON INSTANCIA ÚNICA Y REAPERTURA
-    private void gestionarVentana(String appId, String titulo, JComponent content, int ancho, int alto) {
+    // GESTIÓN DE VENTANAS CON INSTANCIA ÚNICA Y BORDES MODERNOS TIPO WINDOWS 10/11
+    private void gestionarVentana(String appId, String titulo, JComponent content, int ancho, int alto, boolean darkTheme) {
         JInternalFrame frame = ventanasAbiertas.get(appId);
 
         if (frame != null && (frame.isClosed() || frame.getParent() == null || !frame.isDisplayable())) {
@@ -151,8 +159,18 @@ public class MiniWindowsDesktop extends JFrame {
         newFrame.setSize(ancho, alto);
         newFrame.setDefaultCloseOperation(JInternalFrame.DISPOSE_ON_CLOSE);
 
-        int posX = Math.max(30, (desktopPane.getWidth() - ancho) / 2 + (ventanasAbiertas.size() * 20));
-        int posY = Math.max(30, (desktopPane.getHeight() - alto) / 2 + (ventanasAbiertas.size() * 20));
+        newFrame.setBorder(BorderFactory.createLineBorder(darkTheme ? new Color(55, 55, 60) : new Color(210, 215, 225), 1));
+        if (newFrame.getUI() instanceof BasicInternalFrameUI) {
+            BasicInternalFrameUI ui = (BasicInternalFrameUI) newFrame.getUI();
+            JComponent titlePane = (JComponent) ui.getNorthPane();
+            if (titlePane != null) {
+                titlePane.setBackground(darkTheme ? new Color(28, 28, 32) : new Color(245, 246, 248));
+                titlePane.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, darkTheme ? new Color(45, 45, 50) : new Color(225, 228, 235)));
+            }
+        }
+
+        int posX = Math.max(25, (desktopPane.getWidth() - ancho) / 2 + (ventanasAbiertas.size() * 15));
+        int posY = Math.max(25, (desktopPane.getHeight() - alto) / 2 + (ventanasAbiertas.size() * 15));
         newFrame.setLocation(posX, posY);
 
         newFrame.addInternalFrameListener(new InternalFrameAdapter() {
@@ -180,12 +198,16 @@ public class MiniWindowsDesktop extends JFrame {
         int y = 20;
         int gap = 95;
 
-        desktopPane.add(crearIconoEscritorio("archivos_icono", "Este equipo", x, y, () -> abrirExplorador(null)));
-        desktopPane.add(crearIconoEscritorio("word_icon", "Editor Word", x, y += gap, () -> abrirEditor()));
-        desktopPane.add(crearIconoEscritorio("imagenes_icono", "Visor Fotos", x, y += gap, () -> abrirVisor()));
-        desktopPane.add(crearIconoEscritorio("musica_icono", "Reproductor", x, y += gap, () -> abrirReproductor()));
-        desktopPane.add(crearIconoEscritorio("cmd_icono", "Consola CMD", x, y += gap, () -> abrirCMD()));
+        desktopPane.add(crearIconoEscritorio("archivos_icono", "Explorador de\narchivos", x, y, () -> abrirExplorador(null)));
+        desktopPane.add(crearIconoEscritorio("word_icon", "Editor de texto", x, y += gap, () -> abrirEditor(null)));
+        desktopPane.add(crearIconoEscritorio("imagenes_icono", "Visor de\nimágenes", x, y += gap, () -> abrirVisor(null)));
+        desktopPane.add(crearIconoEscritorio("musica_icono", "Reproductor de\nmúsica", x, y += gap, () -> abrirReproductor(null)));
+        desktopPane.add(crearIconoEscritorio("cmd_icono", "Consola de\ncomandos", x, y += gap, () -> abrirCMD()));
         desktopPane.add(crearIconoEscritorio("instagram_icon", "INSTA+", x, y += gap, () -> abrirInsta()));
+
+        if (usuarioActual.isEsAdmin()) {
+            desktopPane.add(crearIconoEscritorio(null, "Cuentas de\nusuario", x, y += gap, () -> abrirCuentasUsuario()));
+        }
     }
 
     private JPanel crearIconoEscritorio(String nombreIcono, String texto, int x, int y, Runnable accion) {
@@ -206,11 +228,18 @@ public class MiniWindowsDesktop extends JFrame {
         };
 
         p.setOpaque(false);
-        p.setBounds(x, y, 90, 85);
+        p.setBounds(x, y, 95, 85);
         p.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-        ImageIcon icono = cargarIcono(nombreIcono, 44, 44);
-        JLabel lblIcon = new JLabel(icono != null ? icono : new ImageIcon(), SwingConstants.CENTER);
+        JLabel lblIcon;
+        if (nombreIcono != null) {
+            ImageIcon icono = cargarIcono(nombreIcono, 42, 42);
+            lblIcon = new JLabel(icono != null ? icono : new ImageIcon(), SwingConstants.CENTER);
+        } else {
+            lblIcon = new JLabel("🛡", SwingConstants.CENTER);
+            lblIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 32));
+            lblIcon.setForeground(Color.WHITE);
+        }
 
         JLabel lbl = new JLabel("<html><center style='text-shadow: 1px 1px 3px #000;'>" + texto.replace("\n", "<br>") + "</center></html>", SwingConstants.CENTER);
         lbl.setForeground(Color.WHITE);
@@ -248,22 +277,25 @@ public class MiniWindowsDesktop extends JFrame {
         startMenu.setOpaque(false);
         startMenu.setLayout(new BorderLayout(10, 10));
         startMenu.setBorder(new EmptyBorder(15, 15, 15, 15));
-        startMenu.setSize(390, 440);
+        startMenu.setSize(400, 460);
         startMenu.setVisible(false);
 
         JPanel grid = new JPanel(new GridLayout(1, 2, 10, 0));
         grid.setOpaque(false);
 
-        JPanel colLeft = new JPanel(new GridLayout(8, 1, 2, 2));
+        JPanel colLeft = new JPanel(new GridLayout(9, 1, 2, 2));
         colLeft.setOpaque(false);
 
         colLeft.add(crearBotonMenu(null, usuarioActual.getUsername() + (usuarioActual.isEsAdmin() ? " (Admin)" : ""), null, true));
         colLeft.add(crearBotonMenu("archivos_icono", "Explorador", () -> abrirExplorador(null), false));
-        colLeft.add(crearBotonMenu("word_icon", "Editor Word", () -> abrirEditor(), false));
-        colLeft.add(crearBotonMenu("imagenes_icono", "Visor Fotos", () -> abrirVisor(), false));
+        colLeft.add(crearBotonMenu("word_icon", "Editor Word", () -> abrirEditor(null), false));
+        colLeft.add(crearBotonMenu("imagenes_icono", "Visor Fotos", () -> abrirVisor(null), false));
         colLeft.add(crearBotonMenu("cmd_icono", "Consola CMD", () -> abrirCMD(), false));
-        colLeft.add(crearBotonMenu("musica_icono", "Reproductor", () -> abrirReproductor(), false));
+        colLeft.add(crearBotonMenu("musica_icono", "Reproductor", () -> abrirReproductor(null), false));
         colLeft.add(crearBotonMenu("instagram_icon", "INSTA+", () -> abrirInsta(), false));
+        if (usuarioActual.isEsAdmin()) {
+            colLeft.add(crearBotonMenu(null, "Cuentas de Usuario", () -> abrirCuentasUsuario(), false));
+        }
         colLeft.add(crearBotonMenu(null, "Cerrar Sesión", () -> cerrarSesion(), false));
 
         JPanel colRight = new JPanel(new GridLayout(8, 1, 2, 2));
@@ -275,7 +307,7 @@ public class MiniWindowsDesktop extends JFrame {
         colRight.add(lblAccesos);
 
         colRight.add(crearBotonMenu("archivos_icono", "Documentos", () -> abrirExplorador(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos")), false));
-        colRight.add(crearBotonMenu("imagenes_icono", "Imágenes", () -> abrirVisor(), false));
+        colRight.add(crearBotonMenu("imagenes_icono", "Imágenes", () -> abrirVisor(null), false));
         colRight.add(crearBotonMenu("musica_icono", "Música", () -> abrirExplorador(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Música")), false));
 
         grid.add(colLeft);
@@ -367,9 +399,9 @@ public class MiniWindowsDesktop extends JFrame {
         center.setOpaque(false);
 
         center.add(crearBotonBarra("archivos_icono", () -> abrirExplorador(null), "Explorador de Archivos"));
-        center.add(crearBotonBarra("word_icon", () -> abrirEditor(), "Editor de Texto"));
-        center.add(crearBotonBarra("imagenes_icono", () -> abrirVisor(), "Visor de Fotos"));
-        center.add(crearBotonBarra("musica_icono", () -> abrirReproductor(), "Reproductor de Música"));
+        center.add(crearBotonBarra("word_icon", () -> abrirEditor(null), "Editor de Texto"));
+        center.add(crearBotonBarra("imagenes_icono", () -> abrirVisor(null), "Visor de Fotos"));
+        center.add(crearBotonBarra("musica_icono", () -> abrirReproductor(null), "Reproductor de Música"));
         center.add(crearBotonBarra("cmd_icono", () -> abrirCMD(), "Consola CMD"));
         center.add(crearBotonBarra("instagram_icon", () -> abrirInsta(), "INSTA+"));
 
@@ -428,14 +460,32 @@ public class MiniWindowsDesktop extends JFrame {
         SwingUtilities.invokeLater(() -> new WindowsLoginFrame().setVisible(true));
     }
 
+    // ENRUTADORES DE APLICACIONES
     private void abrirExplorador(File carpetaInicial) { 
-        gestionarVentana("EXPLORADOR", "Explorador de Archivos (Z:\\)", crearExploradorReal(carpetaInicial), 880, 560); 
+        gestionarVentana("EXPLORADOR", "Explorador de archivos", crearExploradorReal(carpetaInicial), 920, 600, false); 
     }
-    private void abrirEditor() { gestionarVentana("EDITOR", "Bloc de Notas - Editor con Formato", crearEditorReal(), 860, 560); }
-    private void abrirVisor() { gestionarVentana("VISOR", "Visor de Imágenes", crearVisorReal(), 880, 600); }
-    private void abrirCMD() { gestionarVentana("CMD", "Símbolo del Sistema (CMD)", crearCmdReal(), 720, 440); }
-    private void abrirReproductor() { gestionarVentana("REPRODUCTOR", "Media Player", crearReproductorReal(), 960, 600); }
-    private void abrirInsta() { gestionarVentana("INSTA", "INSTA+ - Red Social Integrada", new InstaPanel(usuarioActual), 460, 750); }
+    private void abrirEditor(File archivoParaAbrir) { 
+        gestionarVentana("EDITOR", "Bloc de Notas - Editor con Formato", crearEditorReal(archivoParaAbrir), 860, 560, true); 
+    }
+    private void abrirVisor(File fotoInicial) { 
+        gestionarVentana("VISOR", "Visor de Imágenes", crearVisorReal(fotoInicial), 880, 600, true); 
+    }
+    private void abrirCMD() { 
+        gestionarVentana("CMD", "Símbolo del Sistema (CMD)", crearCmdReal(), 720, 440, true); 
+    }
+    private void abrirReproductor(File cancionParaTocar) { 
+        gestionarVentana("REPRODUCTOR", "Media Player", crearReproductorReal(cancionParaTocar), 960, 600, true); 
+    }
+    private void abrirInsta() { 
+        gestionarVentana("INSTA", "INSTA+ - Red Social Integrada", new InstaPanel(usuarioActual), 460, 750, true); 
+    }
+    private void abrirCuentasUsuario() {
+        if (!usuarioActual.isEsAdmin()) {
+            JOptionPane.showMessageDialog(this, "Acceso denegado: Solo el Administrador puede gestionar las cuentas.", "Seguridad", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        gestionarVentana("CUENTAS_USUARIOS", "Cuentas de usuario", crearPanelCuentasUsuario(), 820, 480, false);
+    }
 
     private JButton crearBotonPersonalizado(String texto, Color bgBase, Color bgHover) {
         JButton btn = new JButton(texto) {
@@ -472,95 +522,717 @@ public class MiniWindowsDesktop extends JFrame {
         return texto.substring(0, Math.max(0, maxLen - 3)) + "...";
     }
 
-    // Helper que resuelve la carátula de forma relativa para que funcione en cualquier PC con Git Pull
     private static File resolverArchivoCaratula(File dirMusica, String caratulaRutaONombre) {
         if (caratulaRutaONombre == null || caratulaRutaONombre.trim().isEmpty()) return null;
-        // 1. Probar en la carpeta Música local del usuario
         File fRelativo = new File(dirMusica, new File(caratulaRutaONombre).getName());
         if (fRelativo.exists()) return fRelativo;
-        // 2. Probar ruta directa si existe
         File fDirecto = new File(caratulaRutaONombre);
         if (fDirecto.exists()) return fDirecto;
         return null;
     }
 
     // =========================================================================
-    // 1. EXPLORADOR DE ARCHIVOS
+    // PANEL "CUENTAS DE USUARIO" (RÉPLICA EXACTA)
+    // =========================================================================
+    private JPanel crearPanelCuentasUsuario() {
+        JPanel p = new JPanel(new BorderLayout(0, 8));
+        p.setBackground(Color.WHITE);
+        p.setBorder(new EmptyBorder(10, 15, 10, 15));
+
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
+        toolbar.setBackground(new Color(248, 249, 251));
+        toolbar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(225, 230, 235)));
+
+        JButton btnNuevo = new JButton("Nuevo usuario");
+        JButton btnRol = new JButton("Cambiar rol");
+        JButton btnEstado = new JButton("Activar / Desactivar");
+        JButton btnPass = new JButton("Restablecer contraseña");
+        JButton btnEliminar = new JButton("Eliminar");
+        JButton btnRefrescar = new JButton("Refrescar");
+
+        JButton[] btns = {btnNuevo, btnRol, btnEstado, btnPass, btnEliminar, btnRefrescar};
+        for (JButton b : btns) {
+            b.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            b.setBackground(Color.WHITE);
+            b.setFocusPainted(false);
+            b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            toolbar.add(b);
+        }
+        p.add(toolbar, BorderLayout.NORTH);
+
+        String[] columnas = {"Usuario", "Nombre completo", "Rol", "Edad", "Género", "Registro", "Estado"};
+        DefaultTableModel modelUsuarios = new DefaultTableModel(columnas, 0) {
+            @Override public boolean isCellEditable(int r, int c) { return false; }
+        };
+
+        JTable tableUsuarios = new JTable(modelUsuarios);
+        tableUsuarios.setRowHeight(26);
+        tableUsuarios.setShowGrid(false);
+        tableUsuarios.setSelectionBackground(new Color(219, 234, 254));
+        tableUsuarios.setSelectionForeground(Color.BLACK);
+        tableUsuarios.getTableHeader().setBackground(new Color(245, 246, 248));
+        tableUsuarios.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+        JScrollPane scrollUsuarios = new JScrollPane(tableUsuarios);
+        scrollUsuarios.setBorder(BorderFactory.createLineBorder(new Color(230, 232, 238), 1));
+        p.add(scrollUsuarios, BorderLayout.CENTER);
+
+        JLabel lblStatus = new JLabel("0 cuenta(s) registradas");
+        lblStatus.setForeground(new Color(120, 125, 135));
+        lblStatus.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        p.add(lblStatus, BorderLayout.SOUTH);
+
+        Runnable recargarTabla = () -> {
+            modelUsuarios.setRowCount(0);
+            try {
+                Lista<Usuario> list = SistemadeArchivos.cargarUsuarios();
+                Nodo<Usuario> cur = list.getHead();
+                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy hh:mm a");
+                int count = 0;
+                while (cur != null) {
+                    Usuario u = cur.getDato();
+                    modelUsuarios.addRow(new Object[]{
+                        u.getUsername(),
+                        u.getNombreCompleto(),
+                        u.isEsAdmin() ? "Administrador" : "Estándar",
+                        u.getEdad(),
+                        String.valueOf(u.getGenero()),
+                        sdf.format(u.getFechaCreacion()),
+                        u.isActivo() ? "Activa" : "Inactiva"
+                    });
+                    count++;
+                    cur = cur.getSiguiente();
+                }
+                lblStatus.setText(count + " cuenta(s) registradas");
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        };
+        recargarTabla.run();
+
+        btnNuevo.addActionListener(e -> {
+            JDialog dlg = new JDialog(this, "Nuevo usuario", true);
+            dlg.setSize(380, 360);
+            dlg.setLocationRelativeTo(this);
+            dlg.setLayout(new BorderLayout());
+
+            JPanel form = new JPanel(new GridLayout(6, 2, 8, 10));
+            form.setBorder(new EmptyBorder(15, 20, 15, 20));
+
+            JTextField txtNom = new JTextField();
+            JTextField txtUsr = new JTextField();
+            JPasswordField txtPwd = new JPasswordField();
+            JSpinner spinEdad = new JSpinner(new SpinnerNumberModel(18, 1, 120, 1));
+            JComboBox<String> cbGen = new JComboBox<>(new String[]{"M", "F"});
+            JComboBox<String> cbRol = new JComboBox<>(new String[]{"Estándar", "Administrador"});
+
+            form.add(new JLabel("Nombre completo:")); form.add(txtNom);
+            form.add(new JLabel("Username:")); form.add(txtUsr);
+            form.add(new JLabel("Contraseña:")); form.add(txtPwd);
+            form.add(new JLabel("Edad:")); form.add(spinEdad);
+            form.add(new JLabel("Género:")); form.add(cbGen);
+            form.add(new JLabel("Rol:")); form.add(cbRol);
+
+            JPanel botPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
+            JButton btnOk = new JButton("OK");
+            JButton btnCancel = new JButton("Cancel");
+            botPanel.add(btnOk);
+            botPanel.add(btnCancel);
+
+            btnCancel.addActionListener(ev -> dlg.dispose());
+            btnOk.addActionListener(ev -> {
+                String u = txtUsr.getText().trim();
+                String nom = txtNom.getText().trim();
+                String pss = new String(txtPwd.getPassword());
+                boolean adm = cbRol.getSelectedItem().equals("Administrador");
+
+                if (u.isEmpty() || nom.isEmpty() || pss.isEmpty()) {
+                    JOptionPane.showMessageDialog(dlg, "Debe completar todos los campos.", "Atención", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+
+                try {
+                    SistemadeArchivos.registrarUsuario(u, pss, adm);
+                    Lista<Usuario> users = SistemadeArchivos.cargarUsuarios();
+                    Nodo<Usuario> node = users.getHead();
+                    while (node != null) {
+                        if (node.getDato().getUsername().equalsIgnoreCase(u)) {
+                            node.getDato().setNombreCompleto(nom);
+                            node.getDato().setEdad((Integer) spinEdad.getValue());
+                            node.getDato().setGenero(cbGen.getSelectedItem().toString().charAt(0));
+                            break;
+                        }
+                        node = node.getSiguiente();
+                    }
+                    SistemadeArchivos.guardarUsuarios(users);
+
+                    dlg.dispose();
+                    recargarTabla.run();
+                    JOptionPane.showMessageDialog(this, "Usuario '" + u + "' creado exitosamente.");
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(dlg, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            });
+
+            dlg.add(form, BorderLayout.CENTER);
+            dlg.add(botPanel, BorderLayout.SOUTH);
+            dlg.setVisible(true);
+        });
+
+        btnRol.addActionListener(e -> {
+            int row = tableUsuarios.getSelectedRow();
+            if (row != -1) {
+                String usr = (String) modelUsuarios.getValueAt(row, 0);
+                if (usr.equalsIgnoreCase("admin")) {
+                    JOptionPane.showMessageDialog(this, "No se puede modificar el rol del Administrador principal.");
+                    return;
+                }
+                try {
+                    Lista<Usuario> users = SistemadeArchivos.cargarUsuarios();
+                    Nodo<Usuario> n = users.getHead();
+                    while (n != null) {
+                        if (n.getDato().getUsername().equalsIgnoreCase(usr)) {
+                            n.getDato().setEsAdmin(!n.getDato().isEsAdmin());
+                            break;
+                        }
+                        n = n.getSiguiente();
+                    }
+                    SistemadeArchivos.guardarUsuarios(users);
+                    recargarTabla.run();
+                } catch (Exception ignored) {}
+            }
+        });
+
+        btnEstado.addActionListener(e -> {
+            int row = tableUsuarios.getSelectedRow();
+            if (row != -1) {
+                String usr = (String) modelUsuarios.getValueAt(row, 0);
+                if (usr.equalsIgnoreCase("admin")) {
+                    JOptionPane.showMessageDialog(this, "No se puede desactivar la cuenta principal de Administrador.");
+                    return;
+                }
+                try {
+                    Lista<Usuario> users = SistemadeArchivos.cargarUsuarios();
+                    Nodo<Usuario> n = users.getHead();
+                    while (n != null) {
+                        if (n.getDato().getUsername().equalsIgnoreCase(usr)) {
+                            n.getDato().setActivo(!n.getDato().isActivo());
+                            break;
+                        }
+                        n = n.getSiguiente();
+                    }
+                    SistemadeArchivos.guardarUsuarios(users);
+                    recargarTabla.run();
+                } catch (Exception ignored) {}
+            }
+        });
+
+        btnPass.addActionListener(e -> {
+            int row = tableUsuarios.getSelectedRow();
+            if (row != -1) {
+                String usr = (String) modelUsuarios.getValueAt(row, 0);
+                String nuevaPass = JOptionPane.showInputDialog(this, "Ingrese la nueva contraseña segura para '" + usr + "':");
+                if (nuevaPass != null && !nuevaPass.trim().isEmpty()) {
+                    try {
+                        Password.validar(nuevaPass);
+                        Lista<Usuario> users = SistemadeArchivos.cargarUsuarios();
+                        Nodo<Usuario> n = users.getHead();
+                        while (n != null) {
+                            if (n.getDato().getUsername().equalsIgnoreCase(usr)) {
+                                n.getDato().setPass(nuevaPass);
+                                break;
+                            }
+                            n = n.getSiguiente();
+                        }
+                        SistemadeArchivos.guardarUsuarios(users);
+                        JOptionPane.showMessageDialog(this, "Contraseña actualizada exitosamente.");
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(this, ex.getMessage(), "Error de Contraseña", JOptionPane.WARNING_MESSAGE);
+                    }
+                }
+            }
+        });
+
+        btnEliminar.addActionListener(e -> {
+            int row = tableUsuarios.getSelectedRow();
+            if (row != -1) {
+                String usr = (String) modelUsuarios.getValueAt(row, 0);
+                if (usr.equalsIgnoreCase("admin")) {
+                    JOptionPane.showMessageDialog(this, "No se puede eliminar la cuenta principal de Administrador.");
+                    return;
+                }
+                int confirm = JOptionPane.showConfirmDialog(this, "¿Desea eliminar al usuario '" + usr + "' y su espacio de archivos?", "Eliminar", JOptionPane.YES_NO_OPTION);
+                if (confirm == JOptionPane.YES_OPTION) {
+                    try {
+                        Lista<Usuario> users = SistemadeArchivos.cargarUsuarios();
+                        users.eliminar(new Usuario(usr, "", false));
+                        SistemadeArchivos.guardarUsuarios(users);
+                        
+                        File uDir = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usr);
+                        if (uDir.exists()) {
+                            File[] fArr = uDir.listFiles();
+                            if (fArr != null) for (File f : fArr) f.delete();
+                            uDir.delete();
+                        }
+                        recargarTabla.run();
+                    } catch (Exception ignored) {}
+                }
+            }
+        });
+
+        btnRefrescar.addActionListener(e -> recargarTabla.run());
+
+        return p;
+    }
+
+    // =========================================================================
+    // 1. EXPLORADOR DE ARCHIVOS CON JTREE COMPLETO Y MOVER/PEGAR EN CARPETAS
     // =========================================================================
     private JPanel crearExploradorReal(File carpetaInicial) {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setBackground(new Color(248, 250, 252));
+        JPanel p = new JPanel(new BorderLayout(0, 0));
+        p.setBackground(Color.WHITE);
 
-        File raizUsuario = (carpetaInicial != null && carpetaInicial.exists()) 
-                ? carpetaInicial 
-                : (usuarioActual.isEsAdmin() ? new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA) : new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername()));
+        File raizPermitida = usuarioActual.isEsAdmin() 
+                ? new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA) 
+                : new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername());
 
-        DefaultMutableTreeNode raizNodo = new DefaultMutableTreeNode(raizUsuario.getName());
+        final File[] carpetaActual = {(carpetaInicial != null && carpetaInicial.exists()) ? carpetaInicial : raizPermitida};
+        final String[] criterioOrden = {"Nombre"};
+
+        Stack<File> historialAtras = new Stack<>();
+        Stack<File> historialAdelante = new Stack<>();
+
+        // 1. Barra de Navegación y Herramientas Superior
+        JPanel topContainer = new JPanel(new BorderLayout());
+        topContainer.setBackground(new Color(248, 249, 251));
+        topContainer.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(225, 230, 235)));
+
+        JPanel navBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+        navBar.setOpaque(false);
+
+        JButton btnAtras = new JButton("<");
+        JButton btnAdelante = new JButton(">");
+        JButton btnSubir = new JButton("↑");
+        JButton btnRefrescar = new JButton("↻");
+        JTextField txtBuscar = new JTextField(" Buscar en esta carpeta");
+        txtBuscar.setPreferredSize(new Dimension(180, 26));
+        txtBuscar.setForeground(new Color(150, 150, 150));
+
+        navBar.add(btnAtras);
+        navBar.add(btnAdelante);
+        navBar.add(btnSubir);
+        navBar.add(btnRefrescar);
+        navBar.add(txtBuscar);
+
+        JPanel actionsBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+        actionsBar.setOpaque(false);
+
+        JButton btnNuevaCarpeta = new JButton("Nueva carpeta");
+        JButton btnNuevoDoc = new JButton("Nuevo documento");
+        JButton btnImportar = new JButton("Importar");
+        JButton btnMoverA = new JButton("Mover a...");
+        JButton btnRenombrar = new JButton("Renombrar");
+        JButton btnCopiar = new JButton("Copiar");
+        JButton btnCortar = new JButton("Cortar");
+        JButton btnPegar = new JButton("Pegar");
+        JButton btnEliminar = new JButton("Eliminar");
+
+        JComboBox<String> cbOrdenar = new JComboBox<>(new String[]{"Nombre", "Tipo", "Modificado", "Tamaño"});
+
+        actionsBar.add(btnNuevaCarpeta);
+        actionsBar.add(btnNuevoDoc);
+        actionsBar.add(btnImportar);
+        actionsBar.add(btnMoverA);
+        actionsBar.add(btnRenombrar);
+        actionsBar.add(btnCopiar);
+        actionsBar.add(btnCortar);
+        actionsBar.add(btnPegar);
+        actionsBar.add(btnEliminar);
+        actionsBar.add(new JLabel(" Ordenar por "));
+        actionsBar.add(cbOrdenar);
+
+        topContainer.add(navBar, BorderLayout.NORTH);
+        topContainer.add(actionsBar, BorderLayout.SOUTH);
+        p.add(topContainer, BorderLayout.NORTH);
+
+        // 2. JTree Completo con Archivos y Subcarpetas
+        DefaultMutableTreeNode raizNodo = new DefaultMutableTreeNode(raizPermitida.getName());
         DefaultTreeModel modeloArbol = new DefaultTreeModel(raizNodo);
         JTree tree = new JTree(modeloArbol);
-        tree.setBackground(new Color(241, 245, 249));
-        JScrollPane scrollTree = new JScrollPane(tree);
-        scrollTree.setPreferredSize(new Dimension(220, 0));
-        scrollTree.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(226, 232, 240)));
+        tree.setBackground(new Color(250, 251, 253));
 
-        String[] columnas = {"Nombre", "Tipo", "Tamaño", "Fecha de Modificación"};
+        // Renderizador con Iconos para el Árbol
+        tree.setCellRenderer(new DefaultTreeCellRenderer() {
+            @Override
+            public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+                JLabel lbl = (JLabel) super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+                String name = String.valueOf(value).toLowerCase();
+                if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")) {
+                    lbl.setIcon(cargarIcono("imagenes_icono", 16, 16));
+                } else if (name.endsWith(".mp3") || name.endsWith(".wav")) {
+                    lbl.setIcon(cargarIcono("musica_icono", 16, 16));
+                } else if (name.endsWith(".sop") || name.endsWith(".txt")) {
+                    lbl.setIcon(cargarIcono("word_icon", 16, 16));
+                } else {
+                    lbl.setIcon(cargarIcono("archivos_icono", 16, 16));
+                }
+                return lbl;
+            }
+        });
+
+        JScrollPane scrollTree = new JScrollPane(tree);
+        scrollTree.setPreferredSize(new Dimension(210, 0));
+        scrollTree.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(225, 230, 235)));
+
+        String[] columnas = {"Nombre", "Tipo", "Modificado", "Tamaño"};
         DefaultTableModel modelTabla = new DefaultTableModel(columnas, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
         JTable tableArchivos = new JTable(modelTabla);
-        tableArchivos.setRowHeight(24);
+        tableArchivos.setRowHeight(26);
         tableArchivos.setShowGrid(false);
         tableArchivos.setSelectionBackground(new Color(219, 234, 254));
         tableArchivos.setSelectionForeground(Color.BLACK);
-        JScrollPane scrollTabla = new JScrollPane(tableArchivos);
+        tableArchivos.getTableHeader().setBackground(new Color(240, 242, 245));
+        tableArchivos.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
 
-        final File[] carpetaActual = {raizUsuario};
+        tableArchivos.getColumnModel().getColumn(0).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+                JLabel lbl = (JLabel) super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                lbl.setBorder(new EmptyBorder(0, 6, 0, 6));
+                String name = String.valueOf(value).toLowerCase();
+
+                if (name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg")) {
+                    lbl.setIcon(cargarIcono("imagenes_icono", 16, 16));
+                } else if (name.endsWith(".mp3") || name.endsWith(".wav")) {
+                    lbl.setIcon(cargarIcono("musica_icono", 16, 16));
+                } else if (name.endsWith(".sop") || name.endsWith(".txt")) {
+                    lbl.setIcon(cargarIcono("word_icon", 16, 16));
+                } else {
+                    lbl.setIcon(cargarIcono("archivos_icono", 16, 16));
+                }
+                return lbl;
+            }
+        });
+
+        JScrollPane scrollTabla = new JScrollPane(tableArchivos);
+        scrollTabla.getViewport().setBackground(Color.WHITE);
+        scrollTabla.setBorder(null);
+
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.setBackground(Color.WHITE);
+
+        JLabel lblRutaActual = new JLabel("  📁 Z:\\");
+        lblRutaActual.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lblRutaActual.setBorder(new EmptyBorder(6, 8, 6, 8));
+        centerPanel.add(lblRutaActual, BorderLayout.NORTH);
+        centerPanel.add(scrollTabla, BorderLayout.CENTER);
+
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scrollTree, centerPanel);
+        split.setDividerLocation(210);
+        split.setBorder(null);
+        p.add(split, BorderLayout.CENTER);
+
+        JLabel lblStatus = new JLabel(" 0 elemento(s)");
+        lblStatus.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lblStatus.setForeground(new Color(130, 135, 145));
+        lblStatus.setBorder(new EmptyBorder(4, 10, 4, 10));
+        p.add(lblStatus, BorderLayout.SOUTH);
 
         Runnable cargarContenido = () -> {
             raizNodo.removeAllChildren();
-            poblarNodos(raizUsuario, raizNodo);
+            poblarNodos(raizPermitida, raizNodo);
             modeloArbol.reload();
 
             modelTabla.setRowCount(0);
+            String rutaDisplay = carpetaActual[0].getAbsolutePath().replace(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA).getAbsolutePath(), "Z:");
+            lblRutaActual.setText("  📁 " + rutaDisplay);
+
+            String filtro = txtBuscar.getText().trim().toLowerCase();
+            if (filtro.equals("buscar en esta carpeta")) filtro = "";
+
             File[] files = carpetaActual[0].listFiles();
             if (files != null) {
-                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy hh:mm a");
-                for (File f : files) {
-                    String tipo = f.isDirectory() ? "Carpeta de archivos" : "Archivo " + obtenerExtension(f.getName());
-                    String tam = f.isDirectory() ? "--" : (f.length() / 1024) + " KB";
-                    modelTabla.addRow(new Object[]{f.getName(), tipo, tam, sdf.format(new Date(f.lastModified()))});
+                switch (criterioOrden[0]) {
+                    case "Tipo":
+                        Arrays.sort(files, (a, b) -> {
+                            if (a.isDirectory() && !b.isDirectory()) return -1;
+                            if (!a.isDirectory() && b.isDirectory()) return 1;
+                            return a.getName().compareToIgnoreCase(b.getName());
+                        });
+                        break;
+                    case "Modificado":
+                        Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+                        break;
+                    case "Tamaño":
+                        Arrays.sort(files, (a, b) -> Long.compare(b.length(), a.length()));
+                        break;
+                    case "Nombre":
+                    default:
+                        Arrays.sort(files, Comparator.comparing(f -> f.getName().toLowerCase()));
+                        break;
                 }
+
+                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy hh:mm a");
+                int count = 0;
+                for (File f : files) {
+                    if (filtro.isEmpty() || f.getName().toLowerCase().contains(filtro)) {
+                        String tipo = f.isDirectory() ? "Carpeta" : (f.getName().endsWith(".txt") || f.getName().endsWith(".sop") ? "Documento de texto" : "Archivo " + obtenerExtension(f.getName()));
+                        String tam = f.isDirectory() ? "" : (f.length() + " B");
+                        modelTabla.addRow(new Object[]{f.getName(), tipo, sdf.format(new Date(f.lastModified())), tam});
+                        count++;
+                    }
+                }
+                lblStatus.setText(" " + count + " elemento(s) en " + rutaDisplay);
             }
         };
         cargarContenido.run();
 
-        JToolBar toolbar = new JToolBar();
-        toolbar.setFloatable(false);
-        toolbar.setBackground(Color.WHITE);
-        toolbar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(226, 232, 240)));
-
-        JButton btnOrganizar = new JButton("Organizar (Hilo)");
-        JButton btnCrear = new JButton("Nueva Carpeta");
-        JButton btnEliminar = new JButton("Eliminar");
-
-        btnOrganizar.setBackground(new Color(238, 242, 255));
-        btnOrganizar.setForeground(new Color(79, 70, 229));
-
-        btnOrganizar.addActionListener(e -> {
-            new Thread(() -> {
-                organizarArchivos(carpetaActual[0]);
-                SwingUtilities.invokeLater(() -> {
-                    cargarContenido.run();
-                    JOptionPane.showMessageDialog(this, "¡Archivos clasificados en Mis Documentos, Música y Mis Imágenes!", "Organizador", JOptionPane.INFORMATION_MESSAGE);
-                });
-            }).start();
+        // DOBLE CLIC EN LA TABLA
+        tableArchivos.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int row = tableArchivos.getSelectedRow();
+                    if (row != -1) {
+                        String nombre = (String) modelTabla.getValueAt(row, 0);
+                        File destino = new File(carpetaActual[0], nombre);
+                        if (destino.isDirectory()) {
+                            historialAtras.push(carpetaActual[0]);
+                            carpetaActual[0] = destino;
+                            cargarContenido.run();
+                        } else {
+                            abrirArchivoSegunExtension(destino);
+                        }
+                    }
+                }
+            }
         });
 
-        btnCrear.addActionListener(e -> {
-            String nom = JOptionPane.showInputDialog(this, "Nombre de la nueva carpeta:");
+        // INTERACCIÓN Y DOBLE CLIC EN EL JTREE
+        tree.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                TreePath path = tree.getPathForLocation(e.getX(), e.getY());
+                if (path != null) {
+                    Object[] nodes = path.getPath();
+                    File res = raizPermitida;
+                    for (int i = 1; i < nodes.length; i++) {
+                        res = new File(res, nodes[i].toString());
+                    }
+
+                    if (res.exists()) {
+                        if (res.isDirectory()) {
+                            carpetaActual[0] = res;
+                            // Actualizar tabla sin reiniciar el árbol
+                            modelTabla.setRowCount(0);
+                            String rutaDisplay = carpetaActual[0].getAbsolutePath().replace(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA).getAbsolutePath(), "Z:");
+                            lblRutaActual.setText("  📁 " + rutaDisplay);
+                            File[] files = carpetaActual[0].listFiles();
+                            if (files != null) {
+                                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy hh:mm a");
+                                for (File f : files) {
+                                    String tipo = f.isDirectory() ? "Carpeta" : "Archivo " + obtenerExtension(f.getName());
+                                    modelTabla.addRow(new Object[]{f.getName(), tipo, sdf.format(new Date(f.lastModified())), f.isDirectory() ? "" : (f.length() + " B")});
+                                }
+                            }
+                        } else if (e.getClickCount() == 2) {
+                            abrirArchivoSegunExtension(res);
+                        }
+                    }
+                }
+            }
+        });
+
+        btnAtras.addActionListener(e -> {
+            if (!historialAtras.isEmpty()) {
+                historialAdelante.push(carpetaActual[0]);
+                carpetaActual[0] = historialAtras.pop();
+                cargarContenido.run();
+            }
+        });
+
+        btnAdelante.addActionListener(e -> {
+            if (!historialAdelante.isEmpty()) {
+                historialAtras.push(carpetaActual[0]);
+                carpetaActual[0] = historialAdelante.pop();
+                cargarContenido.run();
+            }
+        });
+
+        btnSubir.addActionListener(e -> {
+            File padre = carpetaActual[0].getParentFile();
+            if (padre != null && padre.getAbsolutePath().startsWith(raizPermitida.getAbsolutePath())) {
+                historialAtras.push(carpetaActual[0]);
+                carpetaActual[0] = padre;
+                cargarContenido.run();
+            }
+        });
+
+        btnRefrescar.addActionListener(e -> cargarContenido.run());
+
+        txtBuscar.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                if (txtBuscar.getText().equals(" Buscar en esta carpeta")) {
+                    txtBuscar.setText("");
+                    txtBuscar.setForeground(Color.BLACK);
+                }
+            }
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (txtBuscar.getText().trim().isEmpty()) {
+                    txtBuscar.setText(" Buscar en esta carpeta");
+                    txtBuscar.setForeground(new Color(150, 150, 150));
+                    cargarContenido.run();
+                }
+            }
+        });
+
+        txtBuscar.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                cargarContenido.run();
+            }
+        });
+
+        btnNuevaCarpeta.addActionListener(e -> {
+            String nom = JOptionPane.showInputDialog(this, "Nombre de la carpeta:", "Nueva carpeta", JOptionPane.PLAIN_MESSAGE);
             if (nom != null && !nom.trim().isEmpty()) {
                 new File(carpetaActual[0], nom.trim()).mkdirs();
                 cargarContenido.run();
+            }
+        });
+
+        btnNuevoDoc.addActionListener(e -> {
+            String nom = JOptionPane.showInputDialog(this, "Nombre del documento:", "texto.txt");
+            if (nom != null && !nom.trim().isEmpty()) {
+                File nuevo = new File(carpetaActual[0], nom.trim());
+                try {
+                    if (nuevo.getName().endsWith(".sop")) {
+                        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(nuevo))) {
+                            DefaultStyledDocument doc = new DefaultStyledDocument();
+                            doc.insertString(0, "Nuevo documento formateado.", null);
+                            oos.writeObject(doc);
+                        }
+                    } else {
+                        try (BufferedWriter bw = new BufferedWriter(new FileWriter(nuevo))) {
+                            bw.write("Nuevo documento de texto.");
+                        }
+                    }
+                    cargarContenido.run();
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Error al crear archivo: " + ex.getMessage());
+                }
+            }
+        });
+
+        btnImportar.addActionListener(e -> {
+            JFileChooser fc = new JFileChooser();
+            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+                File fSel = fc.getSelectedFile();
+                try {
+                    Files.copy(fSel.toPath(), new File(carpetaActual[0], fSel.getName()).toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    cargarContenido.run();
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Error al importar: " + ex.getMessage());
+                }
+            }
+        });
+
+        // NUEVO: MOVER A OTRA CARPETA DIRECTAMENTE
+        btnMoverA.addActionListener(e -> {
+            int row = tableArchivos.getSelectedRow();
+            if (row == -1) {
+                JOptionPane.showMessageDialog(this, "Seleccione un archivo o carpeta en la tabla para mover.");
+                return;
+            }
+            String n = (String) modelTabla.getValueAt(row, 0);
+            File origen = new File(carpetaActual[0], n);
+
+            File[] subcarpetas = carpetaActual[0].listFiles(File::isDirectory);
+            if (subcarpetas == null || subcarpetas.length == 0) {
+                JOptionPane.showMessageDialog(this, "No hay subcarpetas dentro de esta ubicación para mover el archivo. Cree una carpeta primero.");
+                return;
+            }
+
+            String[] opciones = Arrays.stream(subcarpetas).map(File::getName).toArray(String[]::new);
+            String seleccion = (String) JOptionPane.showInputDialog(this, "Seleccione la carpeta de destino:", "Mover archivo", JOptionPane.QUESTION_MESSAGE, null, opciones, opciones[0]);
+
+            if (seleccion != null) {
+                File destinoCarpeta = new File(carpetaActual[0], seleccion);
+                try {
+                    Files.move(origen.toPath(), new File(destinoCarpeta, origen.getName()).toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    cargarContenido.run();
+                    JOptionPane.showMessageDialog(this, "¡Elemento movido a " + seleccion + "!");
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Error al mover: " + ex.getMessage());
+                }
+            }
+        });
+
+        btnCopiar.addActionListener(e -> {
+            int row = tableArchivos.getSelectedRow();
+            if (row != -1) {
+                String n = (String) modelTabla.getValueAt(row, 0);
+                archivoPortapapeles = new File(carpetaActual[0], n);
+                esOperacionCortar = false;
+                JOptionPane.showMessageDialog(this, "Copiado al portapapeles: " + n);
+            }
+        });
+
+        btnCortar.addActionListener(e -> {
+            int row = tableArchivos.getSelectedRow();
+            if (row != -1) {
+                String n = (String) modelTabla.getValueAt(row, 0);
+                archivoPortapapeles = new File(carpetaActual[0], n);
+                esOperacionCortar = true;
+                JOptionPane.showMessageDialog(this, "Cortado al portapapeles: " + n);
+            }
+        });
+
+        // PEGAR INTELIGENTE: Si hay una carpeta seleccionada, pega adentro de ella
+        btnPegar.addActionListener(e -> {
+            if (archivoPortapapeles == null || !archivoPortapapeles.exists()) {
+                JOptionPane.showMessageDialog(this, "El portapapeles está vacío.");
+                return;
+            }
+
+            File carpetaDestinoFinal = carpetaActual[0];
+            int row = tableArchivos.getSelectedRow();
+            if (row != -1) {
+                String nomSel = (String) modelTabla.getValueAt(row, 0);
+                File fSel = new File(carpetaActual[0], nomSel);
+                if (fSel.isDirectory()) {
+                    carpetaDestinoFinal = fSel;
+                }
+            }
+
+            File dest = new File(carpetaDestinoFinal, archivoPortapapeles.getName());
+            try {
+                if (esOperacionCortar) {
+                    Files.move(archivoPortapapeles.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    archivoPortapapeles = null;
+                } else {
+                    Files.copy(archivoPortapapeles.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+                cargarContenido.run();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error al pegar: " + ex.getMessage());
+            }
+        });
+
+        btnRenombrar.addActionListener(e -> {
+            int row = tableArchivos.getSelectedRow();
+            if (row != -1) {
+                String n = (String) modelTabla.getValueAt(row, 0);
+                File actual = new File(carpetaActual[0], n);
+                String nuevo = JOptionPane.showInputDialog(this, "Nuevo nombre:", n);
+                if (nuevo != null && !nuevo.trim().isEmpty()) {
+                    actual.renameTo(new File(carpetaActual[0], nuevo.trim()));
+                    cargarContenido.run();
+                }
             }
         });
 
@@ -577,18 +1249,31 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
-        toolbar.add(btnOrganizar);
-        toolbar.addSeparator();
-        toolbar.add(btnCrear);
-        toolbar.add(btnEliminar);
+        cbOrdenar.addActionListener(e -> {
+            criterioOrden[0] = (String) cbOrdenar.getSelectedItem();
+            cargarContenido.run();
+        });
 
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scrollTree, scrollTabla);
-        split.setDividerLocation(220);
-        split.setBorder(null);
-
-        p.add(toolbar, BorderLayout.NORTH);
-        p.add(split, BorderLayout.CENTER);
         return p;
+    }
+
+    private void abrirArchivoSegunExtension(File f) {
+        String n = f.getName().toLowerCase();
+        if (f.getName().equalsIgnoreCase("usuarios.sop")) {
+            if (usuarioActual.isEsAdmin()) {
+                abrirCuentasUsuario();
+            } else {
+                abrirEditor(f);
+            }
+        } else if (n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg")) {
+            abrirVisor(f);
+        } else if (n.endsWith(".sop") || n.endsWith(".txt")) {
+            abrirEditor(f);
+        } else if (n.endsWith(".mp3") || n.endsWith(".wav") || n.endsWith(".m4a")) {
+            abrirReproductor(f);
+        } else {
+            abrirEditor(f);
+        }
     }
 
     private String obtenerExtension(String name) {
@@ -596,13 +1281,21 @@ public class MiniWindowsDesktop extends JFrame {
         return idx != -1 ? name.substring(idx).toUpperCase() : "";
     }
 
+    // Pobla el árbol con carpetas y archivos
     private void poblarNodos(File dir, DefaultMutableTreeNode nodo) {
         File[] archivos = dir.listFiles();
         if (archivos != null) {
+            Arrays.sort(archivos, (a, b) -> {
+                if (a.isDirectory() && !b.isDirectory()) return -1;
+                if (!a.isDirectory() && b.isDirectory()) return 1;
+                return a.getName().compareToIgnoreCase(b.getName());
+            });
             for (File f : archivos) {
                 DefaultMutableTreeNode hijo = new DefaultMutableTreeNode(f.getName());
                 nodo.add(hijo);
-                if (f.isDirectory()) poblarNodos(f, hijo);
+                if (f.isDirectory()) {
+                    poblarNodos(f, hijo);
+                }
             }
         }
     }
@@ -633,11 +1326,13 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 2. EDITOR DE TEXTO CON FORMATO
+    // 2. EDITOR DE TEXTO (CON GUARDADO DIRECTO EN ARCHIVO ABIERTO Y GUARDAR COMO)
     // =========================================================================
-    private JPanel crearEditorReal() {
+    private JPanel crearEditorReal(File archivoParaAbrir) {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(new Color(32, 32, 32));
+
+        final File[] archivoActualEnEditor = {archivoParaAbrir};
 
         JTextPane textPane = new JTextPane();
         textPane.setFont(new Font("Consolas", Font.PLAIN, 15));
@@ -654,6 +1349,10 @@ public class MiniWindowsDesktop extends JFrame {
         StyleConstants.setForeground(defaultAttrs, new Color(240, 240, 240));
         ((MutableAttributeSet) textPane.getInputAttributes()).addAttributes(defaultAttrs);
         textPane.setCharacterAttributes(defaultAttrs, false);
+
+        if (archivoParaAbrir != null && archivoParaAbrir.exists()) {
+            cargarArchivoEnEditor(textPane, archivoParaAbrir);
+        }
 
         JScrollPane scrollEditor = new JScrollPane(textPane);
         scrollEditor.setBorder(null);
@@ -741,18 +1440,36 @@ public class MiniWindowsDesktop extends JFrame {
         JButton btnAplicar = crearBotonPersonalizado("Aplicar", ACCENT_BLUE, new Color(25, 145, 255));
         btnAplicar.addActionListener(e -> actualizarFormato.run());
 
-        JButton btnGuardar = crearBotonPersonalizado("Guardar (.sop)", new Color(48, 48, 54), new Color(68, 70, 80));
+        // BOTÓN 1: GUARDAR (SOBREESCRIBE DIRECTAMENTE EN EL ARCHIVO ABIERTO)
+        JButton btnGuardar = crearBotonPersonalizado("Guardar", ACCENT_BLUE, new Color(25, 145, 255));
         btnGuardar.addActionListener(e -> {
+            if (archivoActualEnEditor[0] != null) {
+                guardarArchivoDesdeEditor(textPane, archivoActualEnEditor[0]);
+            } else {
+                // Si es un documento nuevo sin archivo asociado, pedir dónde guardar
+                JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos"));
+                if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+                    File arch = fc.getSelectedFile();
+                    if (!arch.getName().endsWith(".sop") && !arch.getName().endsWith(".txt")) {
+                        arch = new File(arch.getAbsolutePath() + ".sop");
+                    }
+                    archivoActualEnEditor[0] = arch;
+                    guardarArchivoDesdeEditor(textPane, arch);
+                }
+            }
+        });
+
+        // BOTÓN 2: GUARDAR COMO... (PERMITE ELEGIR NUEVO NOMBRE O FORMATO .SOP / .TXT)
+        JButton btnGuardarComo = crearBotonPersonalizado("Guardar como...", new Color(48, 48, 54), new Color(68, 70, 80));
+        btnGuardarComo.addActionListener(e -> {
             JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos"));
             if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
                 File arch = fc.getSelectedFile();
-                if (!arch.getName().endsWith(".sop")) arch = new File(arch.getAbsolutePath() + ".sop");
-                try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(arch))) {
-                    oos.writeObject(textPane.getStyledDocument());
-                    JOptionPane.showMessageDialog(this, "Documento guardado con su formato.");
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(this, "Error al guardar: " + ex.getMessage());
+                if (!arch.getName().endsWith(".sop") && !arch.getName().endsWith(".txt")) {
+                    arch = new File(arch.getAbsolutePath() + ".sop");
                 }
+                archivoActualEnEditor[0] = arch;
+                guardarArchivoDesdeEditor(textPane, arch);
             }
         });
 
@@ -760,11 +1477,8 @@ public class MiniWindowsDesktop extends JFrame {
         btnAbrir.addActionListener(e -> {
             JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos"));
             if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-                try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fc.getSelectedFile()))) {
-                    textPane.setStyledDocument((StyledDocument) ois.readObject());
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(this, "Error al abrir: " + ex.getMessage());
-                }
+                archivoActualEnEditor[0] = fc.getSelectedFile();
+                cargarArchivoEnEditor(textPane, fc.getSelectedFile());
             }
         });
 
@@ -789,6 +1503,7 @@ public class MiniWindowsDesktop extends JFrame {
         ribbon.addSeparator();
         ribbon.add(btnAbrir);
         ribbon.add(btnGuardar);
+        ribbon.add(btnGuardarComo);
 
         topContainer.add(ribbon, BorderLayout.CENTER);
 
@@ -826,6 +1541,75 @@ public class MiniWindowsDesktop extends JFrame {
         p.add(statusBar, BorderLayout.SOUTH);
 
         return p;
+    }
+
+    private void cargarArchivoEnEditor(JTextPane textPane, File arch) {
+        if (arch == null || !arch.exists()) return;
+        try {
+            if (arch.getName().equalsIgnoreCase("usuarios.sop")) {
+                try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(arch))) {
+                    Object obj = ois.readObject();
+                    if (obj instanceof Lista) {
+                        @SuppressWarnings("unchecked")
+                        Lista<Usuario> lista = (Lista<Usuario>) obj;
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("=== REGISTRO BINARIO DEL SISTEMA OPERATIVO (usuarios.sop) ===\n\n");
+                        Nodo<Usuario> cur = lista.getHead();
+                        int i = 1;
+                        while (cur != null) {
+                            Usuario u = cur.getDato();
+                            sb.append(String.format("[%d] Usuario: %-15s | Nombre: %-20s | Rol: %-12s | Estado: %s\n",
+                                    i++, u.getUsername(), u.getNombreCompleto(), (u.isEsAdmin() ? "Admin" : "Estándar"), (u.isActivo() ? "Activa" : "Inactiva")));
+                            cur = cur.getSiguiente();
+                        }
+                        textPane.setText(sb.toString());
+                        aplicarFormatoTexto(textPane, "Consolas", 14, Color.WHITE, false, false, false);
+                        return;
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            if (arch.getName().toLowerCase().endsWith(".sop")) {
+                try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(arch))) {
+                    Object obj = ois.readObject();
+                    if (obj instanceof StyledDocument) {
+                        textPane.setStyledDocument((StyledDocument) obj);
+                        textPane.setCaretColor(Color.WHITE);
+                        return;
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            StringBuilder sb = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(arch), "UTF-8"))) {
+                String linea;
+                while ((linea = br.readLine()) != null) {
+                    sb.append(linea).append("\n");
+                }
+            }
+            textPane.setText(sb.toString());
+            aplicarFormatoTexto(textPane, "Consolas", 14, Color.WHITE, false, false, false);
+
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error al abrir archivo: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void guardarArchivoDesdeEditor(JTextPane textPane, File arch) {
+        try {
+            if (arch.getName().toLowerCase().endsWith(".sop")) {
+                try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(arch))) {
+                    oos.writeObject(textPane.getStyledDocument());
+                }
+            } else {
+                try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(arch), "UTF-8"))) {
+                    bw.write(textPane.getText());
+                }
+            }
+            JOptionPane.showMessageDialog(this, "Documento guardado exitosamente en: " + arch.getName());
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error al guardar: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void estilizarComboBoxOscuro(JComboBox<?> cb) {
@@ -960,10 +1744,34 @@ public class MiniWindowsDesktop extends JFrame {
                     if (!arg.isEmpty() && new File(dirActual[0], arg).mkdir()) areaCmd.append("Directorio creado exitosamente.\n");
                     else areaCmd.append("Error al crear carpeta.\n");
                     break;
+
                 case "rm":
-                    if (!arg.isEmpty() && new File(dirActual[0], arg).delete()) areaCmd.append("Elemento eliminado.\n");
-                    else areaCmd.append("No se encontró el elemento.\n");
+                    if (arg.isEmpty()) {
+                        areaCmd.append("Uso: rm <nombre>\n");
+                    } else {
+                        File aBorrar = new File(dirActual[0], arg);
+                        if (!aBorrar.exists()) {
+                            areaCmd.append("No se encontró el elemento.\n");
+                        } else {
+                            File raizPermitida = usuarioActual.isEsAdmin()
+                                    ? new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA)
+                                    : new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername());
+
+                            if (!aBorrar.getAbsolutePath().startsWith(raizPermitida.getAbsolutePath())) {
+                                areaCmd.append("Acceso denegado: No tiene permisos fuera de su espacio personal.\n");
+                            } else if (!usuarioActual.isEsAdmin() && aBorrar.getAbsolutePath().equals(raizPermitida.getAbsolutePath())) {
+                                areaCmd.append("Acceso denegado: No puede eliminar su propia carpeta raíz.\n");
+                            } else {
+                                if (aBorrar.delete()) {
+                                    areaCmd.append("Elemento eliminado exitosamente.\n");
+                                } else {
+                                    areaCmd.append("No se pudo eliminar el elemento.\n");
+                                }
+                            }
+                        }
+                    }
                     break;
+
                 case "cd":
                     File destino = new File(dirActual[0], arg);
                     if (destino.exists() && destino.isDirectory()) {
@@ -974,27 +1782,33 @@ public class MiniWindowsDesktop extends JFrame {
                         }
                     } else areaCmd.append("Ruta no válida.\n");
                     break;
+
                 case "cd..":
                     File padre = dirActual[0].getParentFile();
                     if (padre != null && (usuarioActual.isEsAdmin() || padre.getAbsolutePath().contains(usuarioActual.getUsername()))) {
                         dirActual[0] = padre;
                     }
                     break;
+
                 case "dir":
                     File[] fList = dirActual[0].listFiles();
                     if (fList != null) {
                         for (File f : fList) areaCmd.append(String.format("%-10s %s\n", (f.isDirectory() ? "<DIR>" : f.length() + "B"), f.getName()));
                     }
                     break;
+
                 case "date":
                     areaCmd.append("Fecha actual: " + new SimpleDateFormat("dd/MM/yyyy").format(new Date()) + "\n");
                     break;
+
                 case "time":
                     areaCmd.append("Hora actual: " + new SimpleDateFormat("HH:mm:ss").format(new Date()) + "\n");
                     break;
+
                 case "cls":
                     areaCmd.setText("");
                     break;
+
                 default:
                     areaCmd.append("'" + comando + "' no se reconoce como un comando interno. Escribe 'help' para ayuda.\n");
             }
@@ -1007,7 +1821,7 @@ public class MiniWindowsDesktop extends JFrame {
     // =========================================================================
     // 4. VISOR DE FOTOS
     // =========================================================================
-    private JPanel crearVisorReal() {
+    private JPanel crearVisorReal(File fotoInicial) {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(new Color(24, 24, 27));
 
@@ -1141,9 +1955,17 @@ public class MiniWindowsDesktop extends JFrame {
                 }
             }
 
-            if (indexActual[0] >= listaFotos.getSize()) {
+            if (fotoInicial != null && fotoInicial.exists()) {
+                for (int i = 0; i < listaFotos.getSize(); i++) {
+                    if (listaFotos.obtener(i).getName().equals(fotoInicial.getName())) {
+                        indexActual[0] = i;
+                        break;
+                    }
+                }
+            } else if (indexActual[0] >= listaFotos.getSize()) {
                 indexActual[0] = Math.max(0, listaFotos.getSize() - 1);
             }
+
             stripThumbnails.revalidate();
             stripThumbnails.repaint();
             mostrarFotoActual.run();
@@ -1205,7 +2027,7 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 5. REPRODUCTOR DE MÚSICA CON RESOLUCIÓN RELATIVA DE CARÁTULA PARA GIT
+    // 5. REPRODUCTOR DE MÚSICA
     // =========================================================================
     
     private static class MotorAudioPlayer {
@@ -1403,7 +2225,7 @@ public class MiniWindowsDesktop extends JFrame {
         String autor;
         String album;
         String descripcion;
-        String caratulaNombre; // Guarda únicamente el nombre relativo para portabilidad con Git
+        String caratulaNombre;
 
         public MetadataCancion(String autor, String album, String descripcion, String caratulaNombre) {
             this.autor = autor;
@@ -1437,7 +2259,7 @@ public class MiniWindowsDesktop extends JFrame {
         return String.format("%d:%02d", m, s);
     }
 
-    private JPanel crearReproductorReal() {
+    private JPanel crearReproductorReal(File cancionParaTocar) {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(new Color(18, 18, 18));
 
@@ -1601,7 +2423,7 @@ public class MiniWindowsDesktop extends JFrame {
         scrollSpotify.setBorder(BorderFactory.createLineBorder(new Color(38, 38, 42), 1, true));
         scrollSpotify.getViewport().setBackground(new Color(18, 18, 18));
 
-        // Panel de Detalles Derecho Proporcional
+        // Panel de Detalles Derecho
         JPanel detailsPanel = new JPanel(new BorderLayout(10, 8));
         detailsPanel.setPreferredSize(new Dimension(280, 0));
         detailsPanel.setBackground(new Color(24, 24, 27));
@@ -1637,7 +2459,6 @@ public class MiniWindowsDesktop extends JFrame {
         JPanel infoCard = new JPanel(new BorderLayout(0, 6));
         infoCard.setOpaque(false);
 
-        // CONTENEDOR EN 2 FILAS ESTRICTAS
         JPanel headerTextPanel = new JPanel(new GridLayout(2, 1, 0, 2));
         headerTextPanel.setOpaque(false);
         headerTextPanel.setPreferredSize(new Dimension(240, 44));
@@ -2056,6 +2877,31 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
+        if (cancionParaTocar != null && cancionParaTocar.exists()) {
+            SwingUtilities.invokeLater(() -> {
+                for (int i = 0; i < modelTablaSpotify.getRowCount(); i++) {
+                    File f = (File) modelTablaSpotify.getValueAt(i, 1);
+                    if (f.getName().equals(cancionParaTocar.getName())) {
+                        tableSpotify.setRowSelectionInterval(i, i);
+                        break;
+                    }
+                }
+                new Thread(() -> {
+                    try {
+                        motorAudio.reproducir(cancionParaTocar);
+                        SwingUtilities.invokeLater(() -> {
+                            btnPlay.setText("PAUSE");
+                            btnPlay.repaint();
+                            lblTrackTitle.setText(cancionParaTocar.getName());
+                            lblTimeTotal.setText(formatearSegundos(motorAudio.getDuracionTotalSegundos()));
+                        });
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }).start();
+            });
+        }
+
         btnBiblioteca.addActionListener(e -> cardsCenter.show(centerCards, "BIBLIOTECA"));
 
         btnAgregarAudio.addActionListener(e -> {
@@ -2097,7 +2943,7 @@ public class MiniWindowsDesktop extends JFrame {
                     String nombreImg = audioDest.getName() + "_cover." + extImg;
                     File caratulaDest = new File(dirMusica, nombreImg);
                     Files.copy(archivoCaratulaSeleccionada[0].toPath(), caratulaDest.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    nombreArchivoCaratula = nombreImg; // Solo guarda el nombre relativo, no la ruta absoluta
+                    nombreArchivoCaratula = nombreImg;
                 }
 
                 String autor = txtAutorInput.getText().trim();
