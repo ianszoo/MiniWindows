@@ -1,9 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 package Insta;
 
 import Windows.Lista;
@@ -18,8 +12,7 @@ import java.text.SimpleDateFormat;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 
-
-public class InstaPanel extends JPanel {
+public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListener {
     private Usuario usuarioActual;
     private String usuarioPerfilVisitado;
 
@@ -33,10 +26,13 @@ public class InstaPanel extends JPanel {
     private CardLayout screenCardLayout;
     private JPanel screenContainer;
 
+    // Cliente Socket TCP para tiempo real instantáneo
+    private InstaClientSocket socketCliente;
+
     // Paleta Instagram Dark Oficial
-    public static final Color BG_PHONE        = new Color(0, 0, 0);          // Negro OLED
-    public static final Color BG_SURFACE      = new Color(18, 18, 18);       // Fondo de Tarjetas
-    public static final Color BG_INPUT        = new Color(28, 28, 30);       // Fondo de Formularios
+    public static final Color BG_PHONE        = new Color(0, 0, 0);
+    public static final Color BG_SURFACE      = new Color(18, 18, 18);
+    public static final Color BG_INPUT        = new Color(28, 28, 30);
     public static final Color BG_HOVER        = new Color(44, 44, 46);
     public static final Color BORDER_LINE     = new Color(48, 48, 50);
     public static final Color TEXT_WHITE      = new Color(245, 245, 247);
@@ -56,7 +52,6 @@ public class InstaPanel extends JPanel {
     private DefaultListModel<String> modelNotificaciones;
     private String chatUsuarioSeleccionado = "noticias";
 
-    private volatile boolean sincronizacionActiva = true;
     private String pantallaActual = "TIMELINE";
     private JPanel bottomNavBar;
 
@@ -74,16 +69,45 @@ public class InstaPanel extends JPanel {
         rootContainer = new JPanel(rootCardLayout);
         rootContainer.setOpaque(false);
 
-        // Vista 1: Autenticación
         rootContainer.add(crearVistaAutenticacionMobile(), "AUTH");
-
-        // Vista 2: Celular Principal
         rootContainer.add(crearVistaTelefonoPrincipal(), "APP");
 
         add(rootContainer, BorderLayout.CENTER);
         rootCardLayout.show(rootContainer, "AUTH");
 
-        iniciarSincronizadorTiempoReal();
+        iniciarConexionSocket();
+    }
+
+    private void iniciarConexionSocket() {
+        socketCliente = new InstaClientSocket();
+        socketCliente.setListener(this);
+        // Conectar al servidor central (puerto 8888) en hilo para no demorar la interfaz
+        new Thread(() -> {
+            socketCliente.conectar("localhost", InstaServer.PUERTO, usuarioActual.getUsername());
+        }).start();
+    }
+
+    // =========================================================================
+    // RESPUESTA INSTANTÁNEA POR SOCKET (SIN REFRESH MANUAL NI SLEEP)
+    // =========================================================================
+    @Override
+    public void onMensajeRecibido(String emisor, String receptor, String contenido, boolean esSticker) {
+        SwingUtilities.invokeLater(() -> {
+            if (pantallaActual.equals("INBOX")) {
+                recargarChat();
+            }
+            recargarNotificacionesEnVivo();
+        });
+    }
+
+    @Override
+    public void onNuevoSeguidor(String seguidor) {
+        SwingUtilities.invokeLater(() -> {
+            recargarNotificacionesEnVivo();
+            if (pantallaActual.equals("PERFIL")) {
+                recargarPerfil();
+            }
+        });
     }
 
     // =========================================================================
@@ -93,7 +117,6 @@ public class InstaPanel extends JPanel {
         JPanel phone = new JPanel(new BorderLayout());
         phone.setBackground(BG_PHONE);
 
-        // TOP BAR
         JPanel topBar = new JPanel(new BorderLayout());
         topBar.setBackground(BG_SURFACE);
         topBar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_LINE));
@@ -129,7 +152,6 @@ public class InstaPanel extends JPanel {
         topBar.add(topActions, BorderLayout.EAST);
         phone.add(topBar, BorderLayout.NORTH);
 
-        // SCREENS CONTAINER
         screenCardLayout = new CardLayout();
         screenContainer = new JPanel(screenCardLayout);
         screenContainer.setBackground(BG_PHONE);
@@ -145,7 +167,6 @@ public class InstaPanel extends JPanel {
 
         phone.add(screenContainer, BorderLayout.CENTER);
 
-        // BOTTOM NAV (ÚNICAMENTE ICONOS)
         bottomNavBar = new JPanel(new GridLayout(1, 5, 0, 0));
         bottomNavBar.setBackground(BG_SURFACE);
         bottomNavBar.setPreferredSize(new Dimension(getWidth(), 50));
@@ -262,7 +283,7 @@ public class InstaPanel extends JPanel {
     }
 
     // =========================================================================
-    // 1. TIMELINE (SOLO SEGUIDOS, ORDEN CRONOLÓGICO)
+    // 1. TIMELINE BASADO 100% EN LISTAS ENLAZADAS (SIN ARREGLOS ESTÁTICOS)
     // =========================================================================
     private JPanel crearVistaTimeline() {
         JPanel feedRoot = new JPanel(new BorderLayout());
@@ -304,7 +325,6 @@ public class InstaPanel extends JPanel {
 
         pnlStoriesBar.add(crearBurbujaStory("Tu historia", usuarioActual.getUsername(), true));
 
-        // Solo autores seguidos + tú mismo
         Lista<String> seguidos = InstaFileManager.cargarSeguidos(usuarioActual.getUsername());
         Lista<String> autores = new Lista<>();
         autores.agregar(usuarioActual.getUsername());
@@ -316,8 +336,8 @@ public class InstaPanel extends JPanel {
             ns = ns.getSiguiente();
         }
 
-        // Cargar publicaciones reales
-        Lista<Publicacion> todosPosts = new Lista<>();
+        // Lista enlazada con inserción ordenada cronológicamente
+        Lista<Publicacion> postsOrdenados = new Lista<>();
         Nodo<String> na = autores.getHead();
         while (na != null) {
             String autor = na.getDato();
@@ -327,7 +347,7 @@ public class InstaPanel extends JPanel {
                 Nodo<Publicacion> np = posts.getHead();
                 while (np != null) {
                     if (!np.getDato().isEsHistoria()) {
-                        todosPosts.agregar(np.getDato());
+                        insertarOrdenadoPorFecha(postsOrdenados, np.getDato());
                     }
                     np = np.getSiguiente();
                 }
@@ -335,27 +355,14 @@ public class InstaPanel extends JPanel {
             na = na.getSiguiente();
         }
 
-        // Ordenar cronológicamente (Más reciente arriba -> Más antigua abajo)
-        int n = todosPosts.getSize();
-        Publicacion[] arrayPosts = new Publicacion[n];
-        for (int i = 0; i < n; i++) arrayPosts[i] = todosPosts.obtener(i);
-
-        for (int i = 0; i < n - 1; i++) {
-            for (int j = 0; j < n - i - 1; j++) {
-                if (arrayPosts[j].getFecha().getTime() < arrayPosts[j + 1].getFecha().getTime()) {
-                    Publicacion temp = arrayPosts[j];
-                    arrayPosts[j] = arrayPosts[j + 1];
-                    arrayPosts[j + 1] = temp;
-                }
-            }
-        }
-
-        for (Publicacion p : arrayPosts) {
-            pnlFeedCards.add(crearTarjetaPostMobile(p));
+        Nodo<Publicacion> nodoPub = postsOrdenados.getHead();
+        while (nodoPub != null) {
+            pnlFeedCards.add(crearTarjetaPostMobile(nodoPub.getDato()));
             pnlFeedCards.add(Box.createVerticalStrut(14));
+            nodoPub = nodoPub.getSiguiente();
         }
 
-        if (n == 0) {
+        if (postsOrdenados.estaVacia()) {
             JLabel lblVacio = new JLabel("No hay publicaciones en tu feed. Sigue a otros usuarios.", SwingConstants.CENTER);
             lblVacio.setForeground(TEXT_MUTED);
             lblVacio.setFont(new Font("Segoe UI", Font.PLAIN, 12));
@@ -367,6 +374,62 @@ public class InstaPanel extends JPanel {
         pnlStoriesBar.repaint();
         pnlFeedCards.revalidate();
         pnlFeedCards.repaint();
+    }
+
+    private void insertarOrdenadoPorFecha(Lista<Publicacion> lista, Publicacion nueva) {
+        if (lista.estaVacia()) {
+            lista.agregar(nueva);
+            return;
+        }
+
+        // Inserción en cabeza si es más reciente
+        if (nueva.getFecha().getTime() >= lista.getHead().getDato().getFecha().getTime()) {
+            Lista<Publicacion> nuevaLista = new Lista<>();
+            nuevaLista.agregar(nueva);
+            Nodo<Publicacion> cur = lista.getHead();
+            while (cur != null) {
+                nuevaLista.agregar(cur.getDato());
+                cur = cur.getSiguiente();
+            }
+            // Copiar datos de vuelta a la lista
+            while (!lista.estaVacia()) {
+                lista.eliminar(lista.obtener(0));
+            }
+            Nodo<Publicacion> n = nuevaLista.getHead();
+            while (n != null) {
+                lista.agregar(n.getDato());
+                n = n.getSiguiente();
+            }
+            return;
+        }
+
+        // Inserción en orden descendente
+        Nodo<Publicacion> actual = lista.getHead();
+        int idx = 0;
+        while (actual != null && actual.getDato().getFecha().getTime() > nueva.getFecha().getTime()) {
+            actual = actual.getSiguiente();
+            idx++;
+        }
+
+        Lista<Publicacion> temp = new Lista<>();
+        Nodo<Publicacion> n = lista.getHead();
+        int c = 0;
+        while (n != null) {
+            if (c == idx) temp.agregar(nueva);
+            temp.agregar(n.getDato());
+            n = n.getSiguiente();
+            c++;
+        }
+        if (c == idx) temp.agregar(nueva);
+
+        while (!lista.estaVacia()) {
+            lista.eliminar(lista.obtener(0));
+        }
+        Nodo<Publicacion> nTemp = temp.getHead();
+        while (nTemp != null) {
+            lista.agregar(nTemp.getDato());
+            nTemp = nTemp.getSiguiente();
+        }
     }
 
     private JPanel crearBurbujaStory(String label, String username, boolean isMyStory) {
@@ -788,7 +851,6 @@ public class InstaPanel extends JPanel {
 
         SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a");
 
-        // 1. NOTIFICACIONES DE SEGUIDORES (NUEVOS FOLLOWERS)
         Lista<String> misSeguidores = InstaFileManager.cargarSeguidores(usuarioActual.getUsername());
         Nodo<String> nSeg = misSeguidores.getHead();
         while (nSeg != null) {
@@ -797,7 +859,6 @@ public class InstaPanel extends JPanel {
             nSeg = nSeg.getSiguiente();
         }
 
-        // 2. NOTIFICACIONES DE MENSAJES DIRECTOS (DMS RECIBIDOS)
         File fInbox = new File(InstaFileManager.RUTA_INSTA + "/" + usuarioActual.getUsername() + "/inbox.ins");
         Lista<MensajeInbox> inbox = InstaFileManager.cargarListaGenerica(fInbox);
         Nodo<MensajeInbox> nMsg = inbox.getHead();
@@ -814,7 +875,6 @@ public class InstaPanel extends JPanel {
             nMsg = nMsg.getSiguiente();
         }
 
-        // 3. NOTIFICACIONES DE MENCIONES EN PUBLICACIONES (@username)
         Lista<String> idsProcesados = new Lista<>();
         Lista<Usuario> todos = InstaFileManager.cargarUsuariosInsta();
         Nodo<Usuario> nu = todos.getHead();
@@ -841,7 +901,7 @@ public class InstaPanel extends JPanel {
     }
 
     // =========================================================================
-    // 5. PERFIL DE USUARIO (BOTÓN DE SEGUIR ARRIBA DE LA CUADRÍCULA)
+    // 5. PERFIL DE USUARIO
     // =========================================================================
     private JPanel crearVistaPerfil() {
         JPanel root = new JPanel(new BorderLayout());
@@ -856,7 +916,6 @@ public class InstaPanel extends JPanel {
         pnlPerfilGrid.setBackground(BG_PHONE);
         pnlPerfilGrid.setBorder(new EmptyBorder(8, 16, 20, 16));
 
-        // Contenedor principal anclado al NORTE para evitar que se estire hacia abajo
         JPanel contentWrapper = new JPanel(new BorderLayout());
         contentWrapper.setBackground(BG_PHONE);
         contentWrapper.add(pnlPerfilHeader, BorderLayout.NORTH);
@@ -888,7 +947,6 @@ public class InstaPanel extends JPanel {
         Lista<String> following = InstaFileManager.cargarSeguidos(u.getUsername());
         Lista<Publicacion> posts = InstaFileManager.cargarPublicaciones(u.getUsername());
 
-        // --- FILA 1: FOTO DE PERFIL + DATOS + BOTÓN DM EN LA ESQUINA SUPERIOR DERECHA ---
         JPanel topInfoRow = new JPanel(new BorderLayout(12, 0));
         topInfoRow.setOpaque(false);
         topInfoRow.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -907,7 +965,6 @@ public class InstaPanel extends JPanel {
         lblUser.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         lblUser.setForeground(TEXT_MUTED);
 
-        // Sin emojis rotos: indicador limpio
         JLabel lblEstado = new JLabel(u.isActivo() ? "• Cuenta activa" : "• Cuenta inactiva");
         lblEstado.setFont(new Font("Segoe UI", Font.BOLD, 11));
         lblEstado.setForeground(u.isActivo() ? new Color(74, 222, 128) : new Color(248, 113, 113));
@@ -919,7 +976,6 @@ public class InstaPanel extends JPanel {
         rightTextPanel.add(lblEstado);
         topInfoRow.add(rightTextPanel, BorderLayout.CENTER);
 
-        // BOTÓN DM SUPERIOR DERECHO (Solo cuando visitas a otra persona)
         if (!esPropio) {
             JButton btnTopDM = new JButton("DM") {
                 @Override
@@ -957,7 +1013,6 @@ public class InstaPanel extends JPanel {
         pnlPerfilHeader.add(topInfoRow);
         pnlPerfilHeader.add(Box.createVerticalStrut(12));
 
-        // --- FILA 2: CONTADORES (POSTS | SEGUIDORES | SIGUIENDO) ---
         JPanel rowStats = new JPanel(new GridLayout(1, 3, 8, 0));
         rowStats.setOpaque(false);
         rowStats.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -970,7 +1025,6 @@ public class InstaPanel extends JPanel {
         pnlPerfilHeader.add(rowStats);
         pnlPerfilHeader.add(Box.createVerticalStrut(10));
 
-        // --- FILA 3: BIOGRAFÍA ---
         JPanel bioPanel = new JPanel();
         bioPanel.setLayout(new BoxLayout(bioPanel, BoxLayout.Y_AXIS));
         bioPanel.setOpaque(false);
@@ -992,7 +1046,6 @@ public class InstaPanel extends JPanel {
         pnlPerfilHeader.add(bioPanel);
         pnlPerfilHeader.add(Box.createVerticalStrut(10));
 
-        // --- FILA 4: BOTÓN SEGUIR O EDITAR PERFIL ---
         if (!esPropio) {
             Lista<String> misSeguidos = InstaFileManager.cargarSeguidos(usuarioActual.getUsername());
             boolean loSigo = misSeguidos.contiene(u.getUsername().toLowerCase());
@@ -1023,10 +1076,12 @@ public class InstaPanel extends JPanel {
                     int resp = JOptionPane.showConfirmDialog(this, "¿Deseas dejar de seguir a @" + u.getUsername() + "?", "Confirmar", JOptionPane.YES_NO_OPTION);
                     if (resp == JOptionPane.YES_OPTION) {
                         InstaFileManager.toggleSeguir(usuarioActual.getUsername(), u.getUsername());
+                        socketCliente.notificarSeguimiento(usuarioActual.getUsername(), u.getUsername());
                         recargarPerfil();
                     }
                 } else {
                     InstaFileManager.toggleSeguir(usuarioActual.getUsername(), u.getUsername());
+                    socketCliente.notificarSeguimiento(usuarioActual.getUsername(), u.getUsername());
                     recargarPerfil();
                 }
             });
@@ -1042,7 +1097,6 @@ public class InstaPanel extends JPanel {
 
         pnlPerfilHeader.add(Box.createVerticalStrut(12));
 
-        // --- FILA 5: BARRA SEPARADORA DE PUBLICACIONES ---
         JPanel divPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 4));
         divPanel.setOpaque(false);
         divPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER_LINE));
@@ -1055,7 +1109,6 @@ public class InstaPanel extends JPanel {
         divPanel.add(lblGridTab);
         pnlPerfilHeader.add(divPanel);
 
-        // --- CUADRÍCULA DE FOTOS ---
         for (int i = posts.getSize() - 1; i >= 0; i--) {
             Publicacion pub = posts.obtener(i);
             if (!pub.isEsHistoria()) {
@@ -1081,7 +1134,6 @@ public class InstaPanel extends JPanel {
         pnlPerfilGrid.repaint();
     }
 
-    // Método auxiliar para dibujar las cajas de estadísticas superiores
     private JPanel crearCajaEstadistica(String numero, String label) {
         JPanel p = new JPanel(new GridLayout(2, 1, 0, 0)) {
             @Override
@@ -1113,7 +1165,7 @@ public class InstaPanel extends JPanel {
     }
 
     // =========================================================================
-    // 6. INBOX
+    // 6. INBOX CONECTADO POR SOCKETS EN TIEMPO REAL
     // =========================================================================
     private JPanel crearVistaInbox() {
         JPanel root = new JPanel(new BorderLayout());
@@ -1158,13 +1210,13 @@ public class InstaPanel extends JPanel {
         inputRow.add(btnActs, BorderLayout.EAST);
         root.add(inputRow, BorderLayout.SOUTH);
 
+        // Envío instantáneo por Socket
         ActionListener enviar = e -> {
             String txt = txtMsg.getText().trim();
             if (!txt.isEmpty()) {
                 if (txt.length() > 300) txt = txt.substring(0, 300);
-                InstaFileManager.enviarMensaje(usuarioActual.getUsername(), chatUsuarioSeleccionado, txt, MensajeInbox.Tipo.TEXTO);
+                socketCliente.enviarMensajeChat(usuarioActual.getUsername(), chatUsuarioSeleccionado, txt, false);
                 txtMsg.setText("");
-                recargarChat();
             }
         };
         btnSend.addActionListener(enviar);
@@ -1172,8 +1224,7 @@ public class InstaPanel extends JPanel {
 
         btnStk.addActionListener(e -> {
             mostrarSelectorStickers(stk -> {
-                InstaFileManager.enviarMensaje(usuarioActual.getUsername(), chatUsuarioSeleccionado, stk, MensajeInbox.Tipo.STICKER);
-                recargarChat();
+                socketCliente.enviarMensajeChat(usuarioActual.getUsername(), chatUsuarioSeleccionado, stk, true);
             });
         });
 
@@ -1192,28 +1243,27 @@ public class InstaPanel extends JPanel {
         grid.setBackground(BG_SURFACE);
         grid.setBorder(new EmptyBorder(12, 12, 12, 12));
 
-        Lista<String> stickers = InstaFileManager.cargarStickers(usuarioActual.getUsername());
-        Nodo<String> n = stickers.getHead();
+        Lista<Stickers> stickers = InstaFileManager.cargarStickers(usuarioActual.getUsername());
+        Nodo<Stickers> n = stickers.getHead();
 
         while (n != null) {
-            String stk = n.getDato();
+            Stickers stkObj = n.getDato();
             JButton btn = new JButton();
             btn.setBackground(BG_INPUT);
             btn.setBorder(BorderFactory.createLineBorder(BORDER_LINE, 1, true));
             btn.setFocusPainted(false);
 
-            File f = new File(stk);
-            if (f.exists()) {
-                ImageIcon ic = new ImageIcon(new ImageIcon(f.getAbsolutePath()).getImage().getScaledInstance(55, 55, Image.SCALE_SMOOTH));
+            if (stkObj.getRutaArchivo() != null && new File(stkObj.getRutaArchivo()).exists()) {
+                ImageIcon ic = new ImageIcon(new ImageIcon(stkObj.getRutaArchivo()).getImage().getScaledInstance(55, 55, Image.SCALE_SMOOTH));
                 btn.setIcon(ic);
             } else {
-                btn.setText(stk);
+                btn.setText(stkObj.getNombre());
                 btn.setFont(new Font("Segoe UI", Font.BOLD, 11));
                 btn.setForeground(TEXT_WHITE);
             }
 
             btn.addActionListener(e -> {
-                callback.accept(stk);
+                callback.accept(stkObj.getRutaArchivo() != null ? stkObj.getRutaArchivo() : stkObj.getNombre());
                 dlg.dispose();
             });
             grid.add(btn);
@@ -1302,22 +1352,6 @@ public class InstaPanel extends JPanel {
         pnlContactosChat.repaint();
         pnlChatStream.revalidate();
         pnlChatStream.repaint();
-    }
-
-    private void iniciarSincronizadorTiempoReal() {
-        Thread t = new Thread(() -> {
-            while (sincronizacionActiva) {
-                try {
-                    Thread.sleep(2500);
-                    SwingUtilities.invokeLater(() -> {
-                        if (pantallaActual.equals("NOTIFICACIONES")) recargarNotificacionesEnVivo();
-                        if (pantallaActual.equals("INBOX")) recargarChat();
-                    });
-                } catch (InterruptedException ignored) { break; }
-            }
-        });
-        t.setDaemon(true);
-        t.start();
     }
 
     // =========================================================================
@@ -1478,6 +1512,7 @@ public class InstaPanel extends JPanel {
         btnItemLogout.addActionListener(e -> {
             int resp = JOptionPane.showConfirmDialog(this, "¿Estás seguro de que quieres cerrar sesión?", "Cerrar Sesión", JOptionPane.YES_NO_OPTION);
             if (resp == JOptionPane.YES_OPTION) {
+                if (socketCliente != null) socketCliente.desconectar();
                 rootCardLayout.show(rootContainer, "AUTH");
                 authCardLayout.show(authContainer, "LANDING");
             }
@@ -1597,6 +1632,7 @@ public class InstaPanel extends JPanel {
                 if (userAuth != null) {
                     usuarioActual = userAuth;
                     usuarioPerfilVisitado = userAuth.getUsername();
+                    iniciarConexionSocket();
                     rootCardLayout.show(rootContainer, "APP");
                     cambiarPantalla("TIMELINE");
                 } else {
@@ -1661,12 +1697,10 @@ public class InstaPanel extends JPanel {
         JTextField txtUser = new JTextField();
         estilizarCampoTexto(txtUser);
 
-        // 1. Campo Contraseña
         JLabel lblPass = crearEtiquetaCampo("Contraseña (mín. 8 caracteres, 1 número o símbolo):");
         JPasswordField txtPass = new JPasswordField();
         JPanel passRow = crearCampoPasswordConOjo(txtPass);
 
-        // 2. Campo Confirmar Contraseña
         JLabel lblPassConfirm = crearEtiquetaCampo("Confirmar contraseña:");
         JPasswordField txtPassConfirm = new JPasswordField();
         JPanel passConfirmRow = crearCampoPasswordConOjo(txtPassConfirm);
@@ -1701,19 +1735,16 @@ public class InstaPanel extends JPanel {
             char gen = cbGen.getSelectedIndex() == 0 ? 'M' : 'F';
             int edad = (Integer) spinEdad.getValue();
 
-            // Validación de campos vacíos
             if (nom.isEmpty() || usr.isEmpty() || pas.isEmpty() || pasConf.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Por favor completa todos los campos requeridos.", "Campos incompletos", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
-            // Validación de coincidencia de contraseñas
             if (!pas.equals(pasConf)) {
                 JOptionPane.showMessageDialog(this, "Las contraseñas no coinciden. Por favor verifícalas.", "Error de Contraseña", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            // Validación de seguridad (Mínimo 8 caracteres y al menos 1 número o símbolo)
             if (!esPasswordValido(pas)) {
                 JOptionPane.showMessageDialog(this, 
                     "La contraseña no es válida:\n• Debe tener al menos 8 caracteres.\n• Debe incluir al menos un número (0-9) o un carácter especial (!@#$%...).", 
@@ -1727,6 +1758,7 @@ public class InstaPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "¡Cuenta @" + usr + " creada con éxito!", "Registro Exitoso", JOptionPane.INFORMATION_MESSAGE);
                 usuarioActual = nuevo;
                 usuarioPerfilVisitado = nuevo.getUsername();
+                iniciarConexionSocket();
                 rootCardLayout.show(rootContainer, "APP");
                 cambiarPantalla("TIMELINE");
             } else {
@@ -1769,7 +1801,7 @@ public class InstaPanel extends JPanel {
     }
 
     // =========================================================================
-    // UTILIDADES: VER CONTRASEÑA, AVATARES Y ESTILIZADO
+    // UTILIDADES
     // =========================================================================
     private JPanel crearCampoPasswordConOjo(JPasswordField pf) {
         JPanel wrapper = new JPanel(new BorderLayout());
@@ -1960,5 +1992,4 @@ public class InstaPanel extends JPanel {
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         return btn;
     }
-
 }

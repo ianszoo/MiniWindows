@@ -2,1994 +2,287 @@ package Insta;
 
 import Windows.Lista;
 import Windows.Nodo;
+import Windows.SistemadeArchivos;
 import Windows.Usuario;
-import java.awt.*;
-import java.awt.event.*;
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.text.SimpleDateFormat;
-import javax.swing.*;
-import javax.swing.border.EmptyBorder;
+import java.io.*;
 
-public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListener {
-    private Usuario usuarioActual;
-    private String usuarioPerfilVisitado;
+public class InstaFileManager {
+    public static final String RUTA_INSTA = SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/INSTA_RAIZ";
+    public static final String ARCHIVO_USERS_INS = RUTA_INSTA + "/users.ins";
+    public static final String RUTA_STICKERS_GLOBALES = RUTA_INSTA + "/stickers_globales";
 
-    // Gestor de pantallas
-    private CardLayout rootCardLayout;
-    private JPanel rootContainer;
+    public static synchronized void inicializarInsta() {
+        File raiz = new File(RUTA_INSTA);
+        if (!raiz.exists()) raiz.mkdirs();
 
-    private CardLayout authCardLayout;
-    private JPanel authContainer;
+        File globStickers = new File(RUTA_STICKERS_GLOBALES);
+        if (!globStickers.exists()) globStickers.mkdirs();
 
-    private CardLayout screenCardLayout;
-    private JPanel screenContainer;
+        File userIns = new File(ARCHIVO_USERS_INS);
+        if (!userIns.exists()) {
+            Lista<Usuario> iniciales = new Lista<>();
+            Usuario uNoticias = new Usuario("noticias", "Noticias2026!", false, "Canal Noticias Honduras", 'M', 30, null);
+            Usuario uDeportes = new Usuario("deportes", "Deportes2026!", false, "Deportes Extremos HN", 'M', 22, null);
+            Usuario uModa = new Usuario("entretenimiento", "Moda2026!", false, "Mundo y Tendencias", 'F', 24, null);
 
-    // Cliente Socket TCP para tiempo real instantáneo
-    private InstaClientSocket socketCliente;
+            iniciales.agregar(uNoticias);
+            iniciales.agregar(uDeportes);
+            iniciales.agregar(uModa);
+            guardarUsuariosInsta(iniciales);
 
-    // Paleta Instagram Dark Oficial
-    public static final Color BG_PHONE        = new Color(0, 0, 0);
-    public static final Color BG_SURFACE      = new Color(18, 18, 18);
-    public static final Color BG_INPUT        = new Color(28, 28, 30);
-    public static final Color BG_HOVER        = new Color(44, 44, 46);
-    public static final Color BORDER_LINE     = new Color(48, 48, 50);
-    public static final Color TEXT_WHITE      = new Color(245, 245, 247);
-    public static final Color TEXT_MUTED      = new Color(160, 160, 165);
-    public static final Color IG_BLUE         = new Color(0, 149, 246);
-    public static final Color IG_RED_HEART    = new Color(255, 48, 64);
-    public static final Color G_ORANGE        = new Color(245, 133, 41);
-    public static final Color G_PINK          = new Color(221, 42, 123);
-
-    // Paneles y Controles Dinámicos
-    private JPanel pnlFeedCards;
-    private JPanel pnlStoriesBar;
-    private JPanel pnlPerfilHeader;
-    private JPanel pnlPerfilGrid;
-    private JPanel pnlChatStream;
-    private JPanel pnlContactosChat;
-    private DefaultListModel<String> modelNotificaciones;
-    private String chatUsuarioSeleccionado = "noticias";
-
-    private String pantallaActual = "TIMELINE";
-    private JPanel bottomNavBar;
-
-    public InstaPanel(Usuario usuario) {
-        this.usuarioActual = usuario != null ? usuario : new Usuario("usuario", "Pass1234!", false);
-        this.usuarioPerfilVisitado = this.usuarioActual.getUsername();
-
-        InstaFileManager.inicializarInsta();
-        InstaFileManager.crearEspacioUsuarioInsta(this.usuarioActual.getUsername());
-
-        setLayout(new BorderLayout());
-        setBackground(BG_PHONE);
-
-        rootCardLayout = new CardLayout();
-        rootContainer = new JPanel(rootCardLayout);
-        rootContainer.setOpaque(false);
-
-        rootContainer.add(crearVistaAutenticacionMobile(), "AUTH");
-        rootContainer.add(crearVistaTelefonoPrincipal(), "APP");
-
-        add(rootContainer, BorderLayout.CENTER);
-        rootCardLayout.show(rootContainer, "AUTH");
-
-        iniciarConexionSocket();
-    }
-
-    private void iniciarConexionSocket() {
-        socketCliente = new InstaClientSocket();
-        socketCliente.setListener(this);
-        // Conectar al servidor central (puerto 8888) en hilo para no demorar la interfaz
-        new Thread(() -> {
-            socketCliente.conectar("localhost", InstaServer.PUERTO, usuarioActual.getUsername());
-        }).start();
-    }
-
-    // =========================================================================
-    // RESPUESTA INSTANTÁNEA POR SOCKET (SIN REFRESH MANUAL NI SLEEP)
-    // =========================================================================
-    @Override
-    public void onMensajeRecibido(String emisor, String receptor, String contenido, boolean esSticker) {
-        SwingUtilities.invokeLater(() -> {
-            if (pantallaActual.equals("INBOX")) {
-                recargarChat();
-            }
-            recargarNotificacionesEnVivo();
-        });
-    }
-
-    @Override
-    public void onNuevoSeguidor(String seguidor) {
-        SwingUtilities.invokeLater(() -> {
-            recargarNotificacionesEnVivo();
-            if (pantallaActual.equals("PERFIL")) {
-                recargarPerfil();
-            }
-        });
-    }
-
-    // =========================================================================
-    // VISTA PRINCIPAL DEL CELULAR (TOP BAR + SCREENS + BOTTOM NAV CON ICONOS)
-    // =========================================================================
-    private JPanel crearVistaTelefonoPrincipal() {
-        JPanel phone = new JPanel(new BorderLayout());
-        phone.setBackground(BG_PHONE);
-
-        JPanel topBar = new JPanel(new BorderLayout());
-        topBar.setBackground(BG_SURFACE);
-        topBar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_LINE));
-        topBar.setPreferredSize(new Dimension(getWidth(), 48));
-        topBar.setBorder(new EmptyBorder(6, 14, 6, 14));
-
-        JLabel lblLogo = new JLabel("INSTA+") {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-                g2.setPaint(new GradientPaint(0, 0, G_ORANGE, getWidth(), 0, G_PINK));
-                g2.setFont(getFont());
-                g2.drawString(getText(), 0, g2.getFontMetrics().getAscent());
-                g2.dispose();
-            }
-        };
-        lblLogo.setFont(new Font("Segoe UI Black", Font.BOLD, 22));
-        lblLogo.setPreferredSize(new Dimension(110, 30));
-        topBar.add(lblLogo, BorderLayout.WEST);
-
-        JPanel topActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        topActions.setOpaque(false);
-
-        JButton btnDirect = crearBotonIconoTop("DM", () -> cambiarPantalla("INBOX"));
-        btnDirect.setToolTipText("Mensajes Directos");
-
-        JButton btnConfig = crearBotonIconoTop("CONFIG", () -> cambiarPantalla("CONFIG"));
-        btnConfig.setToolTipText("Configuración");
-
-        topActions.add(btnDirect);
-        topActions.add(btnConfig);
-        topBar.add(topActions, BorderLayout.EAST);
-        phone.add(topBar, BorderLayout.NORTH);
-
-        screenCardLayout = new CardLayout();
-        screenContainer = new JPanel(screenCardLayout);
-        screenContainer.setBackground(BG_PHONE);
-
-        screenContainer.add(crearVistaTimeline(), "TIMELINE");
-        screenContainer.add(crearVistaBuscar(), "SEARCH");
-        screenContainer.add(crearVistaUpload(), "UPLOAD");
-        screenContainer.add(crearVistaMenciones(), "NOTIFICACIONES");
-        screenContainer.add(crearVistaPerfil(), "PERFIL");
-        screenContainer.add(crearVistaInbox(), "INBOX");
-        screenContainer.add(crearVistaEditarPerfil(), "EDIT_PROFILE");
-        screenContainer.add(crearVistaConfiguracion(), "CONFIG");
-
-        phone.add(screenContainer, BorderLayout.CENTER);
-
-        bottomNavBar = new JPanel(new GridLayout(1, 5, 0, 0));
-        bottomNavBar.setBackground(BG_SURFACE);
-        bottomNavBar.setPreferredSize(new Dimension(getWidth(), 50));
-        bottomNavBar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER_LINE));
-
-        bottomNavBar.add(crearTabBottomNav("HOME", "TIMELINE"));
-        bottomNavBar.add(crearTabBottomNav("SEARCH", "SEARCH"));
-        bottomNavBar.add(crearTabBottomNav("ADD", "UPLOAD"));
-        bottomNavBar.add(crearTabBottomNav("HEART", "NOTIFICACIONES"));
-        bottomNavBar.add(crearTabBottomNav("PROFILE", "PERFIL"));
-
-        phone.add(bottomNavBar, BorderLayout.SOUTH);
-        return phone;
-    }
-
-    public void cambiarPantalla(String nombreCard) {
-        pantallaActual = nombreCard;
-        if (nombreCard.equals("PERFIL")) {
-            recargarPerfil();
-        } else if (nombreCard.equals("TIMELINE")) {
-            recargarTimeline();
-        } else if (nombreCard.equals("INBOX")) {
-            recargarChat();
-        }
-        screenCardLayout.show(screenContainer, nombreCard);
-        bottomNavBar.repaint();
-    }
-
-    private JButton crearTabBottomNav(String tipoIcono, String cardName) {
-        JButton btn = new JButton() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                boolean activa = pantallaActual.equals(cardName);
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                int cx = getWidth() / 2;
-                int cy = getHeight() / 2;
-
-                g2.setColor(activa ? Color.WHITE : TEXT_MUTED);
-                g2.setStroke(new BasicStroke(activa ? 2.2f : 1.8f));
-
-                if (tipoIcono.equals("HOME")) {
-                    int[] xP = {cx, cx - 9, cx - 9, cx + 9, cx + 9};
-                    int[] yP = {cy - 9, cy - 1, cy + 8, cy + 8, cy - 1};
-                    g2.drawPolygon(xP, yP, 5);
-                } else if (tipoIcono.equals("SEARCH")) {
-                    g2.drawOval(cx - 8, cy - 8, 12, 12);
-                    g2.drawLine(cx + 2, cy + 2, cx + 8, cy + 8);
-                } else if (tipoIcono.equals("ADD")) {
-                    g2.drawRoundRect(cx - 9, cy - 9, 18, 18, 5, 5);
-                    g2.drawLine(cx, cy - 5, cx, cy + 5);
-                    g2.drawLine(cx - 5, cy, cx + 5, cy);
-                } else if (tipoIcono.equals("HEART")) {
-                    int[] xH = {cx, cx - 7, cx - 8, cx - 4, cx, cx + 4, cx + 8, cx + 7};
-                    int[] yH = {cy + 7, cy, cy - 5, cy - 8, cy - 4, cy - 8, cy - 5, cy};
-                    g2.drawPolygon(xH, yH, 8);
-                } else if (tipoIcono.equals("PROFILE")) {
-                    g2.drawOval(cx - 5, cy - 8, 10, 10);
-                    g2.drawArc(cx - 8, cy + 1, 16, 10, 0, 180);
-                }
-
-                if (activa) {
-                    g2.setColor(IG_BLUE);
-                    g2.fillOval(cx - 2, getHeight() - 5, 4, 4);
-                }
-                g2.dispose();
-            }
-        };
-        btn.setContentAreaFilled(false);
-        btn.setBorderPainted(false);
-        btn.setFocusPainted(false);
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btn.addActionListener(e -> {
-            if (cardName.equals("PERFIL")) {
-                usuarioPerfilVisitado = usuarioActual.getUsername();
-            }
-            cambiarPantalla(cardName);
-        });
-        return btn;
-    }
-
-    private JButton crearBotonIconoTop(String tipo, Runnable accion) {
-        JButton btn = new JButton() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int cx = getWidth() / 2;
-                int cy = getHeight() / 2;
-
-                g2.setColor(TEXT_WHITE);
-                g2.setStroke(new BasicStroke(1.8f));
-
-                if (tipo.equals("DM")) {
-                    int[] xP = {cx - 8, cx + 8, cx - 2, cx - 8};
-                    int[] yP = {cy - 6, cy - 1, cy + 7, cy + 2};
-                    g2.drawPolygon(xP, yP, 4);
-                    g2.drawLine(cx - 8, cy - 6, cx - 2, cy + 7);
-                } else {
-                    g2.drawOval(cx - 7, cy - 7, 14, 14);
-                    g2.drawOval(cx - 3, cy - 3, 6, 6);
-                }
-                g2.dispose();
-            }
-        };
-        btn.setPreferredSize(new Dimension(34, 34));
-        btn.setContentAreaFilled(false);
-        btn.setBorderPainted(false);
-        btn.setFocusPainted(false);
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btn.addActionListener(e -> accion.run());
-        return btn;
-    }
-
-    // =========================================================================
-    // 1. TIMELINE BASADO 100% EN LISTAS ENLAZADAS (SIN ARREGLOS ESTÁTICOS)
-    // =========================================================================
-    private JPanel crearVistaTimeline() {
-        JPanel feedRoot = new JPanel(new BorderLayout());
-        feedRoot.setBackground(BG_PHONE);
-
-        pnlStoriesBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 10));
-        pnlStoriesBar.setBackground(BG_PHONE);
-        pnlStoriesBar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_LINE));
-
-        JScrollPane scrollStories = new JScrollPane(pnlStoriesBar);
-        scrollStories.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scrollStories.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
-        scrollStories.setBorder(null);
-        scrollStories.setPreferredSize(new Dimension(getWidth(), 105));
-        feedRoot.add(scrollStories, BorderLayout.NORTH);
-
-        pnlFeedCards = new JPanel();
-        pnlFeedCards.setLayout(new BoxLayout(pnlFeedCards, BoxLayout.Y_AXIS));
-        pnlFeedCards.setBackground(BG_PHONE);
-        pnlFeedCards.setBorder(new EmptyBorder(10, 0, 20, 0));
-
-        JPanel wrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        wrap.setBackground(BG_PHONE);
-        wrap.add(pnlFeedCards);
-
-        JScrollPane scrollFeed = new JScrollPane(wrap);
-        scrollFeed.setBorder(null);
-        scrollFeed.getVerticalScrollBar().setUnitIncrement(16);
-        feedRoot.add(scrollFeed, BorderLayout.CENTER);
-
-        recargarTimeline();
-        return feedRoot;
-    }
-
-    private void recargarTimeline() {
-        if (pnlStoriesBar == null || pnlFeedCards == null) return;
-        pnlStoriesBar.removeAll();
-        pnlFeedCards.removeAll();
-
-        pnlStoriesBar.add(crearBurbujaStory("Tu historia", usuarioActual.getUsername(), true));
-
-        Lista<String> seguidos = InstaFileManager.cargarSeguidos(usuarioActual.getUsername());
-        Lista<String> autores = new Lista<>();
-        autores.agregar(usuarioActual.getUsername());
-
-        Nodo<String> ns = seguidos.getHead();
-        while (ns != null) {
-            autores.agregar(ns.getDato());
-            pnlStoriesBar.add(crearBurbujaStory(ns.getDato(), ns.getDato(), false));
-            ns = ns.getSiguiente();
-        }
-
-        // Lista enlazada con inserción ordenada cronológicamente
-        Lista<Publicacion> postsOrdenados = new Lista<>();
-        Nodo<String> na = autores.getHead();
-        while (na != null) {
-            String autor = na.getDato();
-            Usuario uAutor = InstaFileManager.buscarUsuario(autor);
-            if (uAutor != null && uAutor.isActivo()) {
-                Lista<Publicacion> posts = InstaFileManager.cargarPublicaciones(autor);
-                Nodo<Publicacion> np = posts.getHead();
-                while (np != null) {
-                    if (!np.getDato().isEsHistoria()) {
-                        insertarOrdenadoPorFecha(postsOrdenados, np.getDato());
-                    }
-                    np = np.getSiguiente();
-                }
-            }
-            na = na.getSiguiente();
-        }
-
-        Nodo<Publicacion> nodoPub = postsOrdenados.getHead();
-        while (nodoPub != null) {
-            pnlFeedCards.add(crearTarjetaPostMobile(nodoPub.getDato()));
-            pnlFeedCards.add(Box.createVerticalStrut(14));
-            nodoPub = nodoPub.getSiguiente();
-        }
-
-        if (postsOrdenados.estaVacia()) {
-            JLabel lblVacio = new JLabel("No hay publicaciones en tu feed. Sigue a otros usuarios.", SwingConstants.CENTER);
-            lblVacio.setForeground(TEXT_MUTED);
-            lblVacio.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-            lblVacio.setBorder(new EmptyBorder(40, 20, 20, 20));
-            pnlFeedCards.add(lblVacio);
-        }
-
-        pnlStoriesBar.revalidate();
-        pnlStoriesBar.repaint();
-        pnlFeedCards.revalidate();
-        pnlFeedCards.repaint();
-    }
-
-    private void insertarOrdenadoPorFecha(Lista<Publicacion> lista, Publicacion nueva) {
-        if (lista.estaVacia()) {
-            lista.agregar(nueva);
-            return;
-        }
-
-        // Inserción en cabeza si es más reciente
-        if (nueva.getFecha().getTime() >= lista.getHead().getDato().getFecha().getTime()) {
-            Lista<Publicacion> nuevaLista = new Lista<>();
-            nuevaLista.agregar(nueva);
-            Nodo<Publicacion> cur = lista.getHead();
-            while (cur != null) {
-                nuevaLista.agregar(cur.getDato());
-                cur = cur.getSiguiente();
-            }
-            // Copiar datos de vuelta a la lista
-            while (!lista.estaVacia()) {
-                lista.eliminar(lista.obtener(0));
-            }
-            Nodo<Publicacion> n = nuevaLista.getHead();
+            Nodo<Usuario> n = iniciales.getHead();
             while (n != null) {
-                lista.agregar(n.getDato());
+                crearEspacioUsuarioInsta(n.getDato().getUsername());
                 n = n.getSiguiente();
             }
-            return;
-        }
 
-        // Inserción en orden descendente
-        Nodo<Publicacion> actual = lista.getHead();
-        int idx = 0;
-        while (actual != null && actual.getDato().getFecha().getTime() > nueva.getFecha().getTime()) {
-            actual = actual.getSiguiente();
-            idx++;
+            publicarDemo("noticias", "Lanzamiento oficial de la plataforma #Sistemas #Tecnologia", null, "Noticias", false);
+            publicarDemo("deportes", "Gran final de fútbol hoy a las 8PM #Deporte #Campeonato", null, "Eventos", false);
+            publicarDemo("entretenimiento", "Tendencias de moda en tecnología 2026 #Moda", null, "General", false);
         }
+    }
 
-        Lista<Publicacion> temp = new Lista<>();
-        Nodo<Publicacion> n = lista.getHead();
-        int c = 0;
+    private static void publicarDemo(String autor, String txt, String sticker, String carpeta, boolean esHistoria) {
+        Publicacion p = new Publicacion(autor, txt, null, carpeta, sticker, esHistoria, Publicacion.AspectRatio.CUADRADA);
+        Lista<Publicacion> posts = cargarPublicaciones(autor);
+        posts.agregar(p);
+        guardarPublicaciones(autor, posts);
+    }
+
+    public static synchronized void crearEspacioUsuarioInsta(String username) {
+        File uDir = new File(RUTA_INSTA + "/" + username);
+        if (!uDir.exists()) {
+            uDir.mkdirs();
+            new File(uDir, "imagenes").mkdirs();
+            new File(uDir, "folders_personales").mkdirs();
+            new File(uDir, "folders_personales/General").mkdirs();
+            new File(uDir, "folders_personales/Viajes").mkdirs();
+            new File(uDir, "folders_personales/Memes").mkdirs();
+            new File(uDir, "stickers_personales").mkdirs();
+
+            guardarListaGenerica(new File(uDir, "following.ins"), new Lista<String>());
+            guardarListaGenerica(new File(uDir, "followers.ins"), new Lista<String>());
+            guardarListaGenerica(new File(uDir, "insta.ins"), new Lista<Publicacion>());
+            guardarListaGenerica(new File(uDir, "inbox.ins"), new Lista<MensajeInbox>());
+            
+            Lista<Stickers> stks = new Lista<>();
+            stks.agregar(new Stickers("Feliz", null, true));
+            stks.agregar(new Stickers("Triste", null, true));
+            stks.agregar(new Stickers("Corazon", null, true));
+            stks.agregar(new Stickers("Risa", null, true));
+            stks.agregar(new Stickers("Aplauso", null, true));
+            guardarListaGenerica(new File(uDir, "stickers.ins"), stks);
+        }
+    }
+
+    // --- PERSISTENCIA BINARIA (.INS) ---
+    public static synchronized <T> void guardarListaGenerica(File file, Lista<T> lista) {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file))) {
+            oos.writeObject(lista);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static synchronized <T> Lista<T> cargarListaGenerica(File file) {
+        if (!file.exists()) return new Lista<>();
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
+            return (Lista<T>) ois.readObject();
+        } catch (Exception e) {
+            return new Lista<>();
+        }
+    }
+
+    // --- USUARIOS ---
+    public static synchronized Lista<Usuario> cargarUsuariosInsta() {
+        return cargarListaGenerica(new File(ARCHIVO_USERS_INS));
+    }
+
+    public static synchronized void guardarUsuariosInsta(Lista<Usuario> usuarios) {
+        guardarListaGenerica(new File(ARCHIVO_USERS_INS), usuarios);
+    }
+
+    public static synchronized Usuario buscarUsuario(String username) {
+        Lista<Usuario> lista = cargarUsuariosInsta();
+        Nodo<Usuario> n = lista.getHead();
         while (n != null) {
-            if (c == idx) temp.agregar(nueva);
-            temp.agregar(n.getDato());
+            if (n.getDato().getUsername().equalsIgnoreCase(username)) return n.getDato();
             n = n.getSiguiente();
-            c++;
         }
-        if (c == idx) temp.agregar(nueva);
-
-        while (!lista.estaVacia()) {
-            lista.eliminar(lista.obtener(0));
-        }
-        Nodo<Publicacion> nTemp = temp.getHead();
-        while (nTemp != null) {
-            lista.agregar(nTemp.getDato());
-            nTemp = nTemp.getSiguiente();
-        }
+        return null;
     }
 
-    private JPanel crearBurbujaStory(String label, String username, boolean isMyStory) {
-        JPanel p = new JPanel(new BorderLayout(0, 4));
-        p.setOpaque(false);
-        p.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        p.add(crearAvatarCircular(username, 54, !isMyStory, isMyStory ? "+" : null), BorderLayout.CENTER);
-
-        JLabel lbl = new JLabel(label, SwingConstants.CENTER);
-        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 10));
-        lbl.setForeground(TEXT_WHITE);
-        p.add(lbl, BorderLayout.SOUTH);
-
-        p.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (isMyStory) {
-                    cambiarPantalla("UPLOAD");
-                } else {
-                    usuarioPerfilVisitado = username;
-                    cambiarPantalla("PERFIL");
-                }
+    public static synchronized void actualizarUsuario(Usuario modificado) {
+        Lista<Usuario> lista = cargarUsuariosInsta();
+        Nodo<Usuario> n = lista.getHead();
+        while (n != null) {
+            if (n.getDato().getUsername().equalsIgnoreCase(modificado.getUsername())) {
+                n.setDato(modificado);
+                break;
             }
-        });
-        return p;
+            n = n.getSiguiente();
+        }
+        guardarUsuariosInsta(lista);
     }
 
-    private JPanel crearTarjetaPostMobile(Publicacion p) {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(BG_SURFACE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER_LINE, 1, true),
-                new EmptyBorder(10, 12, 12, 12)
-        ));
-
-        int cardW = 390;
-        int cardH = (p.getRutaImagen() != null && new File(p.getRutaImagen()).exists()) ? 430 : 210;
-        card.setPreferredSize(new Dimension(cardW, cardH));
-        card.setMaximumSize(new Dimension(cardW, cardH));
-
-        JPanel header = new JPanel(new BorderLayout(8, 0));
-        header.setOpaque(false);
-        header.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        header.add(crearAvatarCircular(p.getAutor(), 34, true, null), BorderLayout.WEST);
-
-        JPanel postInfo = new JPanel(new GridLayout(2, 1, 0, 1));
-        postInfo.setOpaque(false);
-
-        JLabel lblAutor = new JLabel(p.getAutor() + " escribió:");
-        lblAutor.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        lblAutor.setForeground(TEXT_WHITE);
-
-        String carpeta = (p.getCarpetaPersonal() != null && !p.getCarpetaPersonal().equals("null")) ? p.getCarpetaPersonal() : "General";
-        JLabel lblCarpeta = new JLabel("Carpeta: " + carpeta);
-        lblCarpeta.setFont(new Font("Segoe UI", Font.PLAIN, 10));
-        lblCarpeta.setForeground(TEXT_MUTED);
-
-        postInfo.add(lblAutor);
-        postInfo.add(lblCarpeta);
-        header.add(postInfo, BorderLayout.CENTER);
-
-        String fechaStr = new SimpleDateFormat("dd/MM/yy hh:mm a").format(p.getFecha());
-        JLabel lblFecha = new JLabel(fechaStr);
-        lblFecha.setFont(new Font("Segoe UI", Font.PLAIN, 10));
-        lblFecha.setForeground(TEXT_MUTED);
-        header.add(lblFecha, BorderLayout.EAST);
-
-        header.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                usuarioPerfilVisitado = p.getAutor();
-                cambiarPantalla("PERFIL");
+    public static synchronized Usuario autenticarInsta(String username, String password) throws CuentaDesactivadaException {
+        Lista<Usuario> usuarios = cargarUsuariosInsta();
+        Nodo<Usuario> n = usuarios.getHead();
+        while (n != null) {
+            Usuario u = n.getDato();
+            if (u.getUsername().equalsIgnoreCase(username) && u.getPass().equals(password)) {
+                if (!u.isActivo()) {
+                    throw new CuentaDesactivadaException("Tu cuenta se encuentra desactivada.");
+                }
+                return u;
             }
-        });
-        card.add(header, BorderLayout.NORTH);
-
-        if (p.getRutaImagen() != null && new File(p.getRutaImagen()).exists()) {
-            ImageIcon icon = new ImageIcon(p.getRutaImagen());
-            Image scaled = icon.getImage().getScaledInstance(366, 210, Image.SCALE_SMOOTH);
-            JLabel lblImg = new JLabel(new ImageIcon(scaled));
-            lblImg.setBorder(new EmptyBorder(8, 0, 8, 0));
-            card.add(lblImg, BorderLayout.CENTER);
+            n = n.getSiguiente();
         }
-
-        JPanel footer = new JPanel();
-        footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
-        footer.setOpaque(false);
-
-        String texto = p.getContenido().replaceAll("(#[\\w]+)", "<span style='color:#0095f6;'>$1</span>");
-        texto = texto.replaceAll("(@[\\w]+)", "<span style='color:#ffffff; font-weight:bold;'>$1</span>");
-
-        JLabel lblContenido = new JLabel("<html><body style='width:350px; color:#f1f5f9; font-size:11px; font-family:Segoe UI;'>"
-                + "<b>@" + p.getAutor() + "</b> " + texto + "</body></html>");
-        lblContenido.setBorder(new EmptyBorder(4, 4, 4, 4));
-        footer.add(lblContenido);
-
-        if (p.getSticker() != null && !p.getSticker().isEmpty() && !p.getSticker().equalsIgnoreCase("null")) {
-            JLabel lblSt = new JLabel(" Sticker: " + p.getSticker());
-            lblSt.setFont(new Font("Segoe UI", Font.BOLD, 11));
-            lblSt.setForeground(G_PINK);
-            footer.add(lblSt);
-        }
-
-        card.add(footer, BorderLayout.SOUTH);
-        return card;
+        return null;
     }
 
-    // =========================================================================
-    // 2. BUSCADOR OSCURO
-    // =========================================================================
-    private JPanel crearVistaBuscar() {
-        JPanel p = new JPanel(new BorderLayout(8, 8));
-        p.setBackground(BG_PHONE);
-        p.setBorder(new EmptyBorder(12, 14, 12, 14));
-
-        JPanel top = new JPanel();
-        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
-        top.setOpaque(false);
-
-        JTextField txtSearch = new JTextField();
-        estilizarCampoTexto(txtSearch);
-        top.add(txtSearch);
-        top.add(Box.createVerticalStrut(8));
-
-        JPanel tabs = new JPanel(new GridLayout(1, 2, 8, 0));
-        tabs.setOpaque(false);
-
-        final boolean[] modoUsuarios = {true};
-
-        JButton tabUsers = new JButton("Usuarios") {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(modoUsuarios[0] ? BG_HOVER : BG_SURFACE);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
-                g2.setColor(modoUsuarios[0] ? IG_BLUE : BORDER_LINE);
-                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 6, 6);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        tabUsers.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        tabUsers.setForeground(TEXT_WHITE);
-        tabUsers.setContentAreaFilled(false);
-        tabUsers.setBorderPainted(false);
-        tabUsers.setFocusPainted(false);
-        tabUsers.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        JButton tabTags = new JButton("Hashtags") {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(!modoUsuarios[0] ? BG_HOVER : BG_SURFACE);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
-                g2.setColor(!modoUsuarios[0] ? IG_BLUE : BORDER_LINE);
-                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 6, 6);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        tabTags.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        tabTags.setForeground(TEXT_WHITE);
-        tabTags.setContentAreaFilled(false);
-        tabTags.setBorderPainted(false);
-        tabTags.setFocusPainted(false);
-        tabTags.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        tabs.add(tabUsers);
-        tabs.add(tabTags);
-        top.add(tabs);
-
-        p.add(top, BorderLayout.NORTH);
-
-        DefaultListModel<String> model = new DefaultListModel<>();
-        JList<String> list = new JList<>(model);
-        list.setBackground(BG_SURFACE);
-        list.setForeground(TEXT_WHITE);
-        list.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        list.setSelectionBackground(IG_BLUE);
-        list.setSelectionForeground(Color.WHITE);
-        p.add(new JScrollPane(list), BorderLayout.CENTER);
-
-        JButton btnVer = crearBotonGradiente("Ver Perfil Seleccionado", 220, 36);
-        JPanel bot = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        bot.setOpaque(false);
-        bot.add(btnVer);
-        p.add(bot, BorderLayout.SOUTH);
-
-        Runnable ejecutarBusqueda = () -> {
-            model.clear();
-            String q = txtSearch.getText().trim().toLowerCase();
-
-            if (modoUsuarios[0]) {
-                Lista<Usuario> users = InstaFileManager.cargarUsuariosInsta();
-                Nodo<Usuario> n = users.getHead();
-                while (n != null) {
-                    Usuario u = n.getDato();
-                    if (u.isActivo() && (q.isEmpty() || u.getUsername().toLowerCase().contains(q) || u.getNombreCompleto().toLowerCase().contains(q))) {
-                        model.addElement("@" + u.getUsername() + " — " + u.getNombreCompleto() + " (" + u.getGenero() + ", " + u.getEdad() + "a)");
-                    }
-                    n = n.getSiguiente();
-                }
-            } else {
-                Lista<String> ids = new Lista<>();
-                Lista<Usuario> todos = InstaFileManager.cargarUsuariosInsta();
-                Nodo<Usuario> nu = todos.getHead();
-                while (nu != null) {
-                    Usuario u = nu.getDato();
-                    if (u.isActivo()) {
-                        Lista<Publicacion> posts = InstaFileManager.cargarPublicaciones(u.getUsername());
-                        Nodo<Publicacion> np = posts.getHead();
-                        while (np != null) {
-                            Publicacion pub = np.getDato();
-                            if (!ids.contiene(pub.getId())) {
-                                boolean coincide = q.isEmpty();
-                                if (!coincide) {
-                                    Nodo<String> ntag = pub.getHashtags().getHead();
-                                    while (ntag != null) {
-                                        if (ntag.getDato().contains(q.replace("#", ""))) { coincide = true; break; }
-                                        ntag = ntag.getSiguiente();
-                                    }
-                                }
-                                if (coincide) {
-                                    ids.agregar(pub.getId());
-                                    model.addElement("# @" + pub.getAutor() + ": " + pub.getContenido());
-                                }
-                            }
-                            np = np.getSiguiente();
-                        }
-                    }
-                    nu = nu.getSiguiente();
-                }
-            }
-        };
-
-        tabUsers.addActionListener(e -> {
-            modoUsuarios[0] = true;
-            tabUsers.repaint();
-            tabTags.repaint();
-            btnVer.setVisible(true);
-            ejecutarBusqueda.run();
-        });
-
-        tabTags.addActionListener(e -> {
-            modoUsuarios[0] = false;
-            tabUsers.repaint();
-            tabTags.repaint();
-            btnVer.setVisible(false);
-            ejecutarBusqueda.run();
-        });
-
-        txtSearch.addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyReleased(KeyEvent e) { ejecutarBusqueda.run(); }
-        });
-
-        btnVer.addActionListener(e -> {
-            String sel = list.getSelectedValue();
-            if (sel != null && sel.contains("@")) {
-                int at = sel.indexOf("@");
-                String u = sel.substring(at + 1).split("[ —\\s\\(]")[0].trim();
-                usuarioPerfilVisitado = u;
-                cambiarPantalla("PERFIL");
-            }
-        });
-
-        ejecutarBusqueda.run();
-        return p;
+    public static synchronized boolean registrarUsuarioInsta(Usuario nuevo) {
+        Lista<Usuario> usuarios = cargarUsuariosInsta();
+        Nodo<Usuario> n = usuarios.getHead();
+        while (n != null) {
+            if (n.getDato().getUsername().equalsIgnoreCase(nuevo.getUsername())) return false;
+            n = n.getSiguiente();
+        }
+        usuarios.agregar(nuevo);
+        guardarUsuariosInsta(usuarios);
+        crearEspacioUsuarioInsta(nuevo.getUsername());
+        return true;
     }
 
-    // =========================================================================
-    // 3. CARGAR IMÁGENES / PUBLICAR
-    // =========================================================================
-    private JPanel crearVistaUpload() {
-        JPanel root = new JPanel(new BorderLayout());
-        root.setBackground(BG_PHONE);
-        root.setBorder(new EmptyBorder(12, 14, 12, 14));
-
-        JPanel form = new JPanel();
-        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
-        form.setBackground(BG_SURFACE);
-        form.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER_LINE, 1, true),
-                new EmptyBorder(16, 16, 16, 16)
-        ));
-
-        JLabel lblTit = new JLabel("Crear Publicación", SwingConstants.CENTER);
-        lblTit.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        lblTit.setForeground(TEXT_WHITE);
-        lblTit.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        final String[] rutaSel = {null};
-        JButton btnImg = crearBotonSecundario("Seleccionar Imagen desde equipo");
-        btnImg.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btnImg.setMaximumSize(new Dimension(340, 36));
-
-        btnImg.addActionListener(e -> {
-            JFileChooser fc = new JFileChooser();
-            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-                File sel = fc.getSelectedFile();
-                File destino = new File(InstaFileManager.RUTA_INSTA + "/" + usuarioActual.getUsername() + "/imagenes/" + sel.getName());
-                try {
-                    Files.copy(sel.toPath(), destino.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    rutaSel[0] = destino.getAbsolutePath();
-                    btnImg.setText("Imagen: " + sel.getName());
-                } catch (Exception ex) {
-                    rutaSel[0] = sel.getAbsolutePath();
-                }
-            }
-        });
-
-        JLabel lblDesc = crearEtiquetaCampo("Descripción (#hashtags, @menciones):");
-        JTextField txtDesc = new JTextField();
-        estilizarCampoTexto(txtDesc);
-
-        JLabel lblCarpeta = crearEtiquetaCampo("Carpeta de destino:");
-        File uFolders = new File(InstaFileManager.RUTA_INSTA + "/" + usuarioActual.getUsername() + "/folders_personales");
-        String[] carpetas = uFolders.list((dir, name) -> new File(dir, name).isDirectory());
-        if (carpetas == null || carpetas.length == 0) carpetas = new String[]{"General", "Viajes", "Memes"};
-        JComboBox<String> cbCarpetas = new JComboBox<>(carpetas);
-        cbCarpetas.setBackground(BG_INPUT);
-        cbCarpetas.setForeground(TEXT_WHITE);
-        cbCarpetas.setMaximumSize(new Dimension(340, 34));
-
-        final String[] stickerSel = {null};
-        JButton btnStk = crearBotonSecundario("Adjuntar Sticker");
-        btnStk.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btnStk.setMaximumSize(new Dimension(340, 34));
-
-        btnStk.addActionListener(e -> {
-            mostrarSelectorStickers(st -> {
-                stickerSel[0] = st;
-                btnStk.setText("Sticker: " + st);
-            });
-        });
-
-        JCheckBox chkHistoria = new JCheckBox("Publicar como Historia (Story)");
-        chkHistoria.setForeground(TEXT_WHITE);
-        chkHistoria.setOpaque(false);
-        chkHistoria.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JButton btnPub = crearBotonGradiente("Compartir", 340, 38);
-        btnPub.addActionListener(e -> {
-            String txt = txtDesc.getText().trim();
-            Publicacion p = new Publicacion(
-                    usuarioActual.getUsername(),
-                    txt,
-                    rutaSel[0],
-                    (String) cbCarpetas.getSelectedItem(),
-                    stickerSel[0],
-                    chkHistoria.isSelected(),
-                    Publicacion.AspectRatio.CUADRADA
-            );
-
-            Lista<Publicacion> posts = InstaFileManager.cargarPublicaciones(usuarioActual.getUsername());
-            posts.agregar(p);
-            InstaFileManager.guardarPublicaciones(usuarioActual.getUsername(), posts);
-
-            JOptionPane.showMessageDialog(this, "¡Publicación compartida con éxito!");
-            txtDesc.setText("");
-            rutaSel[0] = null;
-            stickerSel[0] = null;
-            btnImg.setText("Seleccionar Imagen desde equipo");
-            btnStk.setText("Adjuntar Sticker");
-            cambiarPantalla("TIMELINE");
-        });
-
-        form.add(lblTit);
-        form.add(Box.createVerticalStrut(12));
-        form.add(btnImg);
-        form.add(Box.createVerticalStrut(8));
-        form.add(lblDesc);
-        form.add(txtDesc);
-        form.add(Box.createVerticalStrut(8));
-        form.add(lblCarpeta);
-        form.add(cbCarpetas);
-        form.add(Box.createVerticalStrut(10));
-        form.add(btnStk);
-        form.add(Box.createVerticalStrut(8));
-        form.add(chkHistoria);
-        form.add(Box.createVerticalStrut(14));
-        form.add(btnPub);
-
-        root.add(form, BorderLayout.NORTH);
-        return root;
+    // --- PUBLICACIONES ---
+    public static Lista<Publicacion> cargarPublicaciones(String username) {
+        return cargarListaGenerica(new File(RUTA_INSTA + "/" + username + "/insta.ins"));
     }
 
-    // =========================================================================
-    // 4. NOTIFICACIONES
-    // =========================================================================
-    private JPanel crearVistaMenciones() {
-        JPanel p = new JPanel(new BorderLayout(8, 8));
-        p.setBackground(BG_PHONE);
-        p.setBorder(new EmptyBorder(12, 14, 12, 14));
-
-        JLabel l = new JLabel("Notificaciones");
-        l.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        l.setForeground(TEXT_WHITE);
-        p.add(l, BorderLayout.NORTH);
-
-        modelNotificaciones = new DefaultListModel<>();
-        JList<String> list = new JList<>(modelNotificaciones);
-        list.setBackground(BG_SURFACE);
-        list.setForeground(TEXT_WHITE);
-        list.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        p.add(new JScrollPane(list), BorderLayout.CENTER);
-
-        recargarNotificacionesEnVivo();
-        return p;
+    public static void guardarPublicaciones(String username, Lista<Publicacion> posts) {
+        guardarListaGenerica(new File(RUTA_INSTA + "/" + username + "/insta.ins"), posts);
     }
 
-    private void recargarNotificacionesEnVivo() {
-        if (modelNotificaciones == null) return;
-        modelNotificaciones.clear();
-
-        SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a");
-
-        Lista<String> misSeguidores = InstaFileManager.cargarSeguidores(usuarioActual.getUsername());
-        Nodo<String> nSeg = misSeguidores.getHead();
-        while (nSeg != null) {
-            String seguidor = nSeg.getDato();
-            modelNotificaciones.addElement("👤 @" + seguidor + " comenzó a seguirte.");
-            nSeg = nSeg.getSiguiente();
-        }
-
-        File fInbox = new File(InstaFileManager.RUTA_INSTA + "/" + usuarioActual.getUsername() + "/inbox.ins");
-        Lista<MensajeInbox> inbox = InstaFileManager.cargarListaGenerica(fInbox);
-        Nodo<MensajeInbox> nMsg = inbox.getHead();
-        while (nMsg != null) {
-            MensajeInbox m = nMsg.getDato();
-            if (m.getReceptor().equalsIgnoreCase(usuarioActual.getUsername())) {
-                String preview = m.getTexto();
-                if (m.getTipo() == MensajeInbox.Tipo.STICKER) preview = "[Sticker]";
-                else if (preview.length() > 25) preview = preview.substring(0, 25) + "...";
-                
-                String hora = sdf.format(m.getFecha());
-                modelNotificaciones.addElement("💬 @" + m.getEmisor() + " te envió un mensaje: \"" + preview + "\" (" + hora + ")");
-            }
-            nMsg = nMsg.getSiguiente();
-        }
-
-        Lista<String> idsProcesados = new Lista<>();
-        Lista<Usuario> todos = InstaFileManager.cargarUsuariosInsta();
-        Nodo<Usuario> nu = todos.getHead();
-        while (nu != null) {
-            Usuario u = nu.getDato();
-            if (u.isActivo()) {
-                Lista<Publicacion> posts = InstaFileManager.cargarPublicaciones(u.getUsername());
-                Nodo<Publicacion> np = posts.getHead();
-                while (np != null) {
-                    Publicacion pub = np.getDato();
-                    if (!idsProcesados.contiene(pub.getId()) && pub.getMenciones().contiene(usuarioActual.getUsername().toLowerCase())) {
-                        idsProcesados.agregar(pub.getId());
-                        modelNotificaciones.addElement("🏷️ @" + pub.getAutor() + " te mencionó: \"" + pub.getContenido() + "\"");
-                    }
-                    np = np.getSiguiente();
-                }
-            }
-            nu = nu.getSiguiente();
-        }
-
-        if (modelNotificaciones.isEmpty()) {
-            modelNotificaciones.addElement("No tienes notificaciones pendientes.");
-        }
+    // --- SEGUIMIENTO ---
+    public static Lista<String> cargarSeguidos(String username) {
+        return cargarListaGenerica(new File(RUTA_INSTA + "/" + username + "/following.ins"));
     }
 
-    // =========================================================================
-    // 5. PERFIL DE USUARIO
-    // =========================================================================
-    private JPanel crearVistaPerfil() {
-        JPanel root = new JPanel(new BorderLayout());
-        root.setBackground(BG_PHONE);
-
-        pnlPerfilHeader = new JPanel();
-        pnlPerfilHeader.setLayout(new BoxLayout(pnlPerfilHeader, BoxLayout.Y_AXIS));
-        pnlPerfilHeader.setBackground(BG_PHONE);
-        pnlPerfilHeader.setBorder(new EmptyBorder(14, 16, 8, 16));
-
-        pnlPerfilGrid = new JPanel(new GridLayout(0, 3, 4, 4));
-        pnlPerfilGrid.setBackground(BG_PHONE);
-        pnlPerfilGrid.setBorder(new EmptyBorder(8, 16, 20, 16));
-
-        JPanel contentWrapper = new JPanel(new BorderLayout());
-        contentWrapper.setBackground(BG_PHONE);
-        contentWrapper.add(pnlPerfilHeader, BorderLayout.NORTH);
-        contentWrapper.add(pnlPerfilGrid, BorderLayout.CENTER);
-
-        JPanel scrollAnchor = new JPanel(new BorderLayout());
-        scrollAnchor.setBackground(BG_PHONE);
-        scrollAnchor.add(contentWrapper, BorderLayout.NORTH);
-
-        JScrollPane sc = new JScrollPane(scrollAnchor);
-        sc.setBorder(null);
-        sc.getVerticalScrollBar().setUnitIncrement(16);
-        root.add(sc, BorderLayout.CENTER);
-
-        recargarPerfil();
-        return root;
+    public static Lista<String> cargarSeguidores(String username) {
+        return cargarListaGenerica(new File(RUTA_INSTA + "/" + username + "/followers.ins"));
     }
 
-    private void recargarPerfil() {
-        if (pnlPerfilHeader == null || pnlPerfilGrid == null) return;
-        pnlPerfilHeader.removeAll();
-        pnlPerfilGrid.removeAll();
+    public static synchronized boolean toggleSeguir(String usuarioActual, String usuarioDestino) {
+        if (usuarioActual.equalsIgnoreCase(usuarioDestino)) return false;
 
-        Usuario usuarioTemp = InstaFileManager.buscarUsuario(usuarioPerfilVisitado);
-        final Usuario u = (usuarioTemp != null) ? usuarioTemp : usuarioActual;
+        File fFollowing = new File(RUTA_INSTA + "/" + usuarioActual + "/following.ins");
+        File fFollowers = new File(RUTA_INSTA + "/" + usuarioDestino + "/followers.ins");
 
-        boolean esPropio = u.getUsername().equalsIgnoreCase(usuarioActual.getUsername());
-        Lista<String> followers = InstaFileManager.cargarSeguidores(u.getUsername());
-        Lista<String> following = InstaFileManager.cargarSeguidos(u.getUsername());
-        Lista<Publicacion> posts = InstaFileManager.cargarPublicaciones(u.getUsername());
+        Lista<String> following = cargarListaGenerica(fFollowing);
+        Lista<String> followers = cargarListaGenerica(fFollowers);
 
-        JPanel topInfoRow = new JPanel(new BorderLayout(12, 0));
-        topInfoRow.setOpaque(false);
-        topInfoRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        topInfoRow.add(crearAvatarCircular(u.getUsername(), 74, true, null), BorderLayout.WEST);
-
-        JPanel rightTextPanel = new JPanel();
-        rightTextPanel.setLayout(new BoxLayout(rightTextPanel, BoxLayout.Y_AXIS));
-        rightTextPanel.setOpaque(false);
-
-        JLabel lblNombre = new JLabel(u.getNombreCompleto());
-        lblNombre.setFont(new Font("Segoe UI", Font.BOLD, 15));
-        lblNombre.setForeground(TEXT_WHITE);
-
-        JLabel lblUser = new JLabel("@" + u.getUsername());
-        lblUser.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        lblUser.setForeground(TEXT_MUTED);
-
-        JLabel lblEstado = new JLabel(u.isActivo() ? "• Cuenta activa" : "• Cuenta inactiva");
-        lblEstado.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        lblEstado.setForeground(u.isActivo() ? new Color(74, 222, 128) : new Color(248, 113, 113));
-
-        rightTextPanel.add(lblNombre);
-        rightTextPanel.add(Box.createVerticalStrut(2));
-        rightTextPanel.add(lblUser);
-        rightTextPanel.add(Box.createVerticalStrut(3));
-        rightTextPanel.add(lblEstado);
-        topInfoRow.add(rightTextPanel, BorderLayout.CENTER);
-
-        if (!esPropio) {
-            JButton btnTopDM = new JButton("DM") {
-                @Override
-                protected void paintComponent(Graphics g) {
-                    Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.setColor(getModel().isRollover() ? BG_HOVER : BG_INPUT);
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-                    g2.setColor(IG_BLUE);
-                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
-                    g2.dispose();
-                    super.paintComponent(g);
-                }
-            };
-            btnTopDM.setFont(new Font("Segoe UI", Font.BOLD, 12));
-            btnTopDM.setForeground(Color.WHITE);
-            btnTopDM.setPreferredSize(new Dimension(65, 34));
-            btnTopDM.setContentAreaFilled(false);
-            btnTopDM.setBorderPainted(false);
-            btnTopDM.setFocusPainted(false);
-            btnTopDM.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            btnTopDM.setToolTipText("Enviar mensaje directo a @" + u.getUsername());
-
-            btnTopDM.addActionListener(e -> {
-                chatUsuarioSeleccionado = u.getUsername();
-                cambiarPantalla("INBOX");
-            });
-
-            JPanel pnlBtnDM = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 10));
-            pnlBtnDM.setOpaque(false);
-            pnlBtnDM.add(btnTopDM);
-            topInfoRow.add(pnlBtnDM, BorderLayout.EAST);
-        }
-
-        pnlPerfilHeader.add(topInfoRow);
-        pnlPerfilHeader.add(Box.createVerticalStrut(12));
-
-        JPanel rowStats = new JPanel(new GridLayout(1, 3, 8, 0));
-        rowStats.setOpaque(false);
-        rowStats.setAlignmentX(Component.LEFT_ALIGNMENT);
-        rowStats.setMaximumSize(new Dimension(380, 42));
-
-        rowStats.add(crearCajaEstadistica(posts.getSize() + "", "Publicaciones"));
-        rowStats.add(crearCajaEstadistica(followers.getSize() + "", "Seguidores"));
-        rowStats.add(crearCajaEstadistica(following.getSize() + "", "Siguiendo"));
-
-        pnlPerfilHeader.add(rowStats);
-        pnlPerfilHeader.add(Box.createVerticalStrut(10));
-
-        JPanel bioPanel = new JPanel();
-        bioPanel.setLayout(new BoxLayout(bioPanel, BoxLayout.Y_AXIS));
-        bioPanel.setOpaque(false);
-        bioPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        String fechaReg = new SimpleDateFormat("dd/MM/yyyy").format(u.getFechaCreacion());
-        String generoStr = (u.getGenero() == 'M' || u.getGenero() == 'm') ? "Masculino" : "Femenino";
-
-        JLabel lblBio1 = new JLabel("Género: " + generoStr + "  •  Edad: " + u.getEdad() + " años");
-        lblBio1.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        lblBio1.setForeground(TEXT_MUTED);
-
-        JLabel lblBio2 = new JLabel("Miembro desde: " + fechaReg);
-        lblBio2.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        lblBio2.setForeground(TEXT_MUTED);
-
-        bioPanel.add(lblBio1);
-        bioPanel.add(lblBio2);
-        pnlPerfilHeader.add(bioPanel);
-        pnlPerfilHeader.add(Box.createVerticalStrut(10));
-
-        if (!esPropio) {
-            Lista<String> misSeguidos = InstaFileManager.cargarSeguidos(usuarioActual.getUsername());
-            boolean loSigo = misSeguidos.contiene(u.getUsername().toLowerCase());
-
-            JButton btnSeguir = new JButton(loSigo ? "Siguiendo" : "Seguir") {
-                @Override
-                protected void paintComponent(Graphics g) {
-                    Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.setColor(loSigo ? BG_INPUT : IG_BLUE);
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-                    g2.dispose();
-                    super.paintComponent(g);
-                }
-            };
-            btnSeguir.setFont(new Font("Segoe UI", Font.BOLD, 12));
-            btnSeguir.setForeground(Color.WHITE);
-            btnSeguir.setContentAreaFilled(false);
-            btnSeguir.setBorderPainted(false);
-            btnSeguir.setFocusPainted(false);
-            btnSeguir.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            btnSeguir.setMaximumSize(new Dimension(380, 36));
-            btnSeguir.setPreferredSize(new Dimension(380, 36));
-            btnSeguir.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-            btnSeguir.addActionListener(e -> {
-                if (loSigo) {
-                    int resp = JOptionPane.showConfirmDialog(this, "¿Deseas dejar de seguir a @" + u.getUsername() + "?", "Confirmar", JOptionPane.YES_NO_OPTION);
-                    if (resp == JOptionPane.YES_OPTION) {
-                        InstaFileManager.toggleSeguir(usuarioActual.getUsername(), u.getUsername());
-                        socketCliente.notificarSeguimiento(usuarioActual.getUsername(), u.getUsername());
-                        recargarPerfil();
-                    }
-                } else {
-                    InstaFileManager.toggleSeguir(usuarioActual.getUsername(), u.getUsername());
-                    socketCliente.notificarSeguimiento(usuarioActual.getUsername(), u.getUsername());
-                    recargarPerfil();
-                }
-            });
-            pnlPerfilHeader.add(btnSeguir);
+        boolean yaLoSigue = following.contiene(usuarioDestino.toLowerCase());
+        if (yaLoSigue) {
+            following.eliminar(usuarioDestino.toLowerCase());
+            followers.eliminar(usuarioActual.toLowerCase());
+            guardarListaGenerica(fFollowing, following);
+            guardarListaGenerica(fFollowers, followers);
+            return false;
         } else {
-            JButton btnEdit = crearBotonSecundario("Editar perfil");
-            btnEdit.setMaximumSize(new Dimension(380, 36));
-            btnEdit.setPreferredSize(new Dimension(380, 36));
-            btnEdit.setAlignmentX(Component.LEFT_ALIGNMENT);
-            btnEdit.addActionListener(e -> cambiarPantalla("EDIT_PROFILE"));
-            pnlPerfilHeader.add(btnEdit);
+            following.agregar(usuarioDestino.toLowerCase());
+            followers.agregar(usuarioActual.toLowerCase());
+            guardarListaGenerica(fFollowing, following);
+            guardarListaGenerica(fFollowers, followers);
+            return true;
         }
-
-        pnlPerfilHeader.add(Box.createVerticalStrut(12));
-
-        JPanel divPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 4));
-        divPanel.setOpaque(false);
-        divPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, BORDER_LINE));
-        divPanel.setMaximumSize(new Dimension(380, 24));
-        divPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JLabel lblGridTab = new JLabel("PUBLICACIONES");
-        lblGridTab.setFont(new Font("Segoe UI", Font.BOLD, 10));
-        lblGridTab.setForeground(TEXT_MUTED);
-        divPanel.add(lblGridTab);
-        pnlPerfilHeader.add(divPanel);
-
-        for (int i = posts.getSize() - 1; i >= 0; i--) {
-            Publicacion pub = posts.obtener(i);
-            if (!pub.isEsHistoria()) {
-                JPanel gItem = new JPanel(new BorderLayout());
-                gItem.setBackground(BG_SURFACE);
-                gItem.setPreferredSize(new Dimension(115, 115));
-                gItem.setBorder(BorderFactory.createLineBorder(BORDER_LINE));
-
-                if (pub.getRutaImagen() != null && new File(pub.getRutaImagen()).exists()) {
-                    ImageIcon ic = new ImageIcon(new ImageIcon(pub.getRutaImagen()).getImage().getScaledInstance(115, 115, Image.SCALE_SMOOTH));
-                    gItem.add(new JLabel(ic), BorderLayout.CENTER);
-                } else {
-                    JLabel lbl = new JLabel("<html><center style='color:#cbd5e1; font-size:9px; padding:6px;'>" + pub.getContenido() + "</center></html>", SwingConstants.CENTER);
-                    gItem.add(lbl, BorderLayout.CENTER);
-                }
-                pnlPerfilGrid.add(gItem);
-            }
-        }
-
-        pnlPerfilHeader.revalidate();
-        pnlPerfilHeader.repaint();
-        pnlPerfilGrid.revalidate();
-        pnlPerfilGrid.repaint();
     }
 
-    private JPanel crearCajaEstadistica(String numero, String label) {
-        JPanel p = new JPanel(new GridLayout(2, 1, 0, 0)) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(BG_SURFACE);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
-                g2.setColor(BORDER_LINE);
-                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 6, 6);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        p.setOpaque(false);
-        p.setBorder(new EmptyBorder(4, 4, 4, 4));
+    // --- INBOX ---
+    public static synchronized void enviarMensaje(String emisor, String receptor, String texto, MensajeInbox.Tipo tipo) {
+        MensajeInbox msg = new MensajeInbox(emisor, receptor, texto, tipo);
+        File fEmisor = new File(RUTA_INSTA + "/" + emisor + "/inbox.ins");
+        Lista<MensajeInbox> inboxEmisor = cargarListaGenerica(fEmisor);
+        inboxEmisor.agregar(msg);
+        guardarListaGenerica(fEmisor, inboxEmisor);
 
-        JLabel lblNum = new JLabel(numero, SwingConstants.CENTER);
-        lblNum.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        lblNum.setForeground(TEXT_WHITE);
-
-        JLabel lblTxt = new JLabel(label, SwingConstants.CENTER);
-        lblTxt.setFont(new Font("Segoe UI", Font.PLAIN, 9));
-        lblTxt.setForeground(TEXT_MUTED);
-
-        p.add(lblNum);
-        p.add(lblTxt);
-        return p;
+        File fReceptor = new File(RUTA_INSTA + "/" + receptor + "/inbox.ins");
+        Lista<MensajeInbox> inboxReceptor = cargarListaGenerica(fReceptor);
+        inboxReceptor.agregar(msg);
+        guardarListaGenerica(fReceptor, inboxReceptor);
     }
 
-    // =========================================================================
-    // 6. INBOX CONECTADO POR SOCKETS EN TIEMPO REAL
-    // =========================================================================
-    private JPanel crearVistaInbox() {
-        JPanel root = new JPanel(new BorderLayout());
-        root.setBackground(BG_PHONE);
+    public static synchronized Lista<MensajeInbox> obtenerConversacion(String u1, String u2) {
+        File f = new File(RUTA_INSTA + "/" + u1 + "/inbox.ins");
+        Lista<MensajeInbox> todos = cargarListaGenerica(f);
+        Lista<MensajeInbox> chat = new Lista<>();
 
-        pnlContactosChat = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
-        pnlContactosChat.setBackground(BG_SURFACE);
-        pnlContactosChat.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_LINE));
-
-        JScrollPane scrollContactos = new JScrollPane(pnlContactosChat);
-        scrollContactos.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scrollContactos.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
-        scrollContactos.setBorder(null);
-        scrollContactos.setPreferredSize(new Dimension(getWidth(), 55));
-        root.add(scrollContactos, BorderLayout.NORTH);
-
-        pnlChatStream = new JPanel();
-        pnlChatStream.setLayout(new BoxLayout(pnlChatStream, BoxLayout.Y_AXIS));
-        pnlChatStream.setBackground(BG_PHONE);
-        pnlChatStream.setBorder(new EmptyBorder(12, 14, 12, 14));
-
-        JScrollPane scrollChatStream = new JScrollPane(pnlChatStream);
-        scrollChatStream.setBorder(null);
-        root.add(scrollChatStream, BorderLayout.CENTER);
-
-        JPanel inputRow = new JPanel(new BorderLayout(6, 0));
-        inputRow.setBackground(BG_SURFACE);
-        inputRow.setBorder(new EmptyBorder(8, 10, 8, 10));
-
-        JTextField txtMsg = new JTextField();
-        estilizarCampoTexto(txtMsg);
-
-        JPanel btnActs = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
-        btnActs.setOpaque(false);
-
-        JButton btnStk = crearBotonSecundario("Sticker");
-        JButton btnSend = crearBotonGradiente("Enviar", 65, 34);
-
-        btnActs.add(btnStk);
-        btnActs.add(btnSend);
-        inputRow.add(txtMsg, BorderLayout.CENTER);
-        inputRow.add(btnActs, BorderLayout.EAST);
-        root.add(inputRow, BorderLayout.SOUTH);
-
-        // Envío instantáneo por Socket
-        ActionListener enviar = e -> {
-            String txt = txtMsg.getText().trim();
-            if (!txt.isEmpty()) {
-                if (txt.length() > 300) txt = txt.substring(0, 300);
-                socketCliente.enviarMensajeChat(usuarioActual.getUsername(), chatUsuarioSeleccionado, txt, false);
-                txtMsg.setText("");
-            }
-        };
-        btnSend.addActionListener(enviar);
-        txtMsg.addActionListener(enviar);
-
-        btnStk.addActionListener(e -> {
-            mostrarSelectorStickers(stk -> {
-                socketCliente.enviarMensajeChat(usuarioActual.getUsername(), chatUsuarioSeleccionado, stk, true);
-            });
-        });
-
-        recargarChat();
-        return root;
-    }
-
-    private void mostrarSelectorStickers(java.util.function.Consumer<String> callback) {
-        JDialog dlg = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Stickers Pack", true);
-        dlg.setSize(320, 280);
-        dlg.setLocationRelativeTo(this);
-        dlg.setLayout(new BorderLayout());
-        dlg.getContentPane().setBackground(BG_SURFACE);
-
-        JPanel grid = new JPanel(new GridLayout(0, 3, 8, 8));
-        grid.setBackground(BG_SURFACE);
-        grid.setBorder(new EmptyBorder(12, 12, 12, 12));
-
-        Lista<Stickers> stickers = InstaFileManager.cargarStickers(usuarioActual.getUsername());
-        Nodo<Stickers> n = stickers.getHead();
-
-        while (n != null) {
-            Stickers stkObj = n.getDato();
-            JButton btn = new JButton();
-            btn.setBackground(BG_INPUT);
-            btn.setBorder(BorderFactory.createLineBorder(BORDER_LINE, 1, true));
-            btn.setFocusPainted(false);
-
-            if (stkObj.getRutaArchivo() != null && new File(stkObj.getRutaArchivo()).exists()) {
-                ImageIcon ic = new ImageIcon(new ImageIcon(stkObj.getRutaArchivo()).getImage().getScaledInstance(55, 55, Image.SCALE_SMOOTH));
-                btn.setIcon(ic);
-            } else {
-                btn.setText(stkObj.getNombre());
-                btn.setFont(new Font("Segoe UI", Font.BOLD, 11));
-                btn.setForeground(TEXT_WHITE);
-            }
-
-            btn.addActionListener(e -> {
-                callback.accept(stkObj.getRutaArchivo() != null ? stkObj.getRutaArchivo() : stkObj.getNombre());
-                dlg.dispose();
-            });
-            grid.add(btn);
-            n = n.getSiguiente();
-        }
-
-        dlg.add(new JScrollPane(grid), BorderLayout.CENTER);
-        dlg.setVisible(true);
-    }
-
-    private synchronized void recargarChat() {
-        if (pnlChatStream == null || pnlContactosChat == null) return;
-        pnlContactosChat.removeAll();
-
-        Lista<Usuario> todos = InstaFileManager.cargarUsuariosInsta();
-        Nodo<Usuario> nu = todos.getHead();
-        while (nu != null) {
-            Usuario uObj = nu.getDato();
-            String u = uObj.getUsername();
-            if (!u.equalsIgnoreCase(usuarioActual.getUsername()) && uObj.isActivo()) {
-                boolean isSel = u.equalsIgnoreCase(chatUsuarioSeleccionado);
-                JButton btnContact = new JButton("@" + u) {
-                    @Override
-                    protected void paintComponent(Graphics g) {
-                        Graphics2D g2 = (Graphics2D) g.create();
-                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                        g2.setColor(isSel ? IG_BLUE : BG_INPUT);
-                        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
-                        g2.dispose();
-                        super.paintComponent(g);
-                    }
-                };
-                btnContact.setFont(new Font("Segoe UI", Font.BOLD, 11));
-                btnContact.setForeground(Color.WHITE);
-                btnContact.setContentAreaFilled(false);
-                btnContact.setBorderPainted(false);
-                btnContact.setFocusPainted(false);
-                btnContact.setCursor(new Cursor(Cursor.HAND_CURSOR));
-                btnContact.addActionListener(e -> {
-                    chatUsuarioSeleccionado = u;
-                    recargarChat();
-                });
-                pnlContactosChat.add(btnContact);
-            }
-            nu = nu.getSiguiente();
-        }
-
-        pnlChatStream.removeAll();
-        Lista<MensajeInbox> conversacion = InstaFileManager.obtenerConversacion(usuarioActual.getUsername(), chatUsuarioSeleccionado);
-        SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a");
-
-        Nodo<MensajeInbox> n = conversacion.getHead();
+        Nodo<MensajeInbox> n = todos.getHead();
         while (n != null) {
             MensajeInbox m = n.getDato();
-            boolean esMio = m.getEmisor().equalsIgnoreCase(usuarioActual.getUsername());
-            String hora = sdf.format(m.getFecha());
-
-            JPanel row = new JPanel(new FlowLayout(esMio ? FlowLayout.RIGHT : FlowLayout.LEFT, 0, 0));
-            row.setOpaque(false);
-
-            JPanel bubble = new JPanel(new BorderLayout(0, 2));
-            bubble.setBackground(esMio ? IG_BLUE : BG_INPUT);
-            bubble.setBorder(new EmptyBorder(6, 10, 6, 10));
-
-            if (m.getTipo() == MensajeInbox.Tipo.STICKER && new File(m.getTexto()).exists()) {
-                ImageIcon ic = new ImageIcon(new ImageIcon(m.getTexto()).getImage().getScaledInstance(75, 75, Image.SCALE_SMOOTH));
-                bubble.add(new JLabel(ic), BorderLayout.CENTER);
-            } else {
-                JLabel lblMsg = new JLabel("<html><body style='max-width:240px; color:#ffffff; font-size:11px; font-family:Segoe UI;'>"
-                        + m.getTexto() + "</body></html>");
-                bubble.add(lblMsg, BorderLayout.CENTER);
+            if ((m.getEmisor().equalsIgnoreCase(u1) && m.getReceptor().equalsIgnoreCase(u2)) ||
+                (m.getEmisor().equalsIgnoreCase(u2) && m.getReceptor().equalsIgnoreCase(u1))) {
+                chat.agregar(m);
+                if (m.getReceptor().equalsIgnoreCase(u1)) m.setLeido(true);
             }
-
-            JLabel lblH = new JLabel(hora + (esMio ? (m.isLeido() ? " • Visto" : "") : ""), SwingConstants.RIGHT);
-            lblH.setFont(new Font("Segoe UI", Font.PLAIN, 9));
-            lblH.setForeground(new Color(200, 200, 200));
-            bubble.add(lblH, BorderLayout.SOUTH);
-
-            row.add(bubble);
-            pnlChatStream.add(row);
-            pnlChatStream.add(Box.createVerticalStrut(6));
             n = n.getSiguiente();
         }
-
-        pnlContactosChat.revalidate();
-        pnlContactosChat.repaint();
-        pnlChatStream.revalidate();
-        pnlChatStream.repaint();
+        guardarListaGenerica(f, todos);
+        return chat;
     }
 
-    // =========================================================================
-    // 7. EDITAR PERFIL
-    // =========================================================================
-    private JPanel crearVistaEditarPerfil() {
-        JPanel root = new JPanel(new BorderLayout());
-        root.setBackground(BG_PHONE);
-        root.setBorder(new EmptyBorder(12, 14, 12, 14));
+    public static synchronized void eliminarConversacionCompleta(String u1, String u2) {
+        File f = new File(RUTA_INSTA + "/" + u1 + "/inbox.ins");
+        Lista<MensajeInbox> todos = cargarListaGenerica(f);
+        Lista<MensajeInbox> filtrados = new Lista<>();
 
-        JPanel card = new JPanel();
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBackground(BG_SURFACE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER_LINE, 1),
-                new EmptyBorder(16, 16, 16, 16)
-        ));
-
-        Usuario u = InstaFileManager.buscarUsuario(usuarioActual.getUsername());
-        if (u == null) u = usuarioActual;
-
-        JLabel lblTit = new JLabel("Editar Perfil", SwingConstants.CENTER);
-        lblTit.setFont(new Font("Segoe UI", Font.BOLD, 16));
-        lblTit.setForeground(TEXT_WHITE);
-        lblTit.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JLabel lblNom = crearEtiquetaCampo("Nombre completo:");
-        JTextField txtNom = new JTextField(u.getNombreCompleto());
-        estilizarCampoTexto(txtNom);
-
-        JLabel lblPass = crearEtiquetaCampo("Contraseña:");
-        JPasswordField txtPass = new JPasswordField(u.getPass());
-        JPanel passRow = crearCampoPasswordConOjo(txtPass);
-
-        JLabel lblEdad = crearEtiquetaCampo("Edad:");
-        JSpinner spinEdad = new JSpinner(new SpinnerNumberModel(u.getEdad(), 1, 120, 1));
-        spinEdad.setMaximumSize(new Dimension(340, 32));
-
-        JLabel lblGen = crearEtiquetaCampo("Género:");
-        JComboBox<String> cbGen = new JComboBox<>(new String[]{"M", "F"});
-        cbGen.setSelectedItem(String.valueOf(u.getGenero()));
-        cbGen.setMaximumSize(new Dimension(340, 32));
-
-        JButton btnGuardar = crearBotonGradiente("Guardar Cambios", 340, 36);
-        JButton btnDesactivar = crearBotonSecundario(u.isActivo() ? "Desactivar Cuenta" : "Reactivar Cuenta");
-        btnDesactivar.setMaximumSize(new Dimension(340, 34));
-        btnDesactivar.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        btnGuardar.addActionListener(e -> {
-            Usuario usr = InstaFileManager.buscarUsuario(usuarioActual.getUsername());
-            if (usr != null) {
-                usr.setNombreCompleto(txtNom.getText().trim());
-                usr.setPass(new String(txtPass.getPassword()));
-                usr.setEdad((Integer) spinEdad.getValue());
-                usr.setGenero(((String) cbGen.getSelectedItem()).charAt(0));
-                InstaFileManager.actualizarUsuario(usr);
-                JOptionPane.showMessageDialog(this, "Perfil actualizado con éxito.");
-                cambiarPantalla("PERFIL");
-            }
-        });
-
-        btnDesactivar.addActionListener(e -> {
-            Usuario usr = InstaFileManager.buscarUsuario(usuarioActual.getUsername());
-            if (usr != null) {
-                if (usr.isActivo()) {
-                    int resp = JOptionPane.showConfirmDialog(this, "¿Desactivar tu cuenta?\nNo aparecerás en búsquedas ni feed.", "Confirmar", JOptionPane.YES_NO_OPTION);
-                    if (resp == JOptionPane.YES_OPTION) {
-                        usr.setActivo(false);
-                        InstaFileManager.actualizarUsuario(usr);
-                        btnDesactivar.setText("Reactivar Cuenta");
-                        cambiarPantalla("PERFIL");
-                    }
-                } else {
-                    usr.setActivo(true);
-                    InstaFileManager.actualizarUsuario(usr);
-                    JOptionPane.showMessageDialog(this, "¡Cuenta reactivada!");
-                    btnDesactivar.setText("Desactivar Cuenta");
-                    cambiarPantalla("PERFIL");
-                }
-            }
-        });
-
-        card.add(lblTit);
-        card.add(Box.createVerticalStrut(10));
-        card.add(lblNom);
-        card.add(txtNom);
-        card.add(Box.createVerticalStrut(6));
-        card.add(lblPass);
-        card.add(passRow);
-        card.add(Box.createVerticalStrut(6));
-        card.add(lblEdad);
-        card.add(spinEdad);
-        card.add(Box.createVerticalStrut(6));
-        card.add(lblGen);
-        card.add(cbGen);
-        card.add(Box.createVerticalStrut(12));
-        card.add(btnGuardar);
-        card.add(Box.createVerticalStrut(8));
-        card.add(btnDesactivar);
-
-        root.add(card, BorderLayout.NORTH);
-        return root;
-    }
-
-    // =========================================================================
-    // 8. CONFIGURACIÓN Y CERRAR SESIÓN
-    // =========================================================================
-    private JPanel crearVistaConfiguracion() {
-        JPanel root = new JPanel(new BorderLayout());
-        root.setBackground(BG_PHONE);
-        root.setBorder(new EmptyBorder(16, 16, 16, 16));
-
-        JPanel pnl = new JPanel();
-        pnl.setLayout(new BoxLayout(pnl, BoxLayout.Y_AXIS));
-        pnl.setBackground(BG_SURFACE);
-        pnl.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER_LINE, 1, true),
-                new EmptyBorder(20, 20, 20, 20)
-        ));
-
-        JLabel lblTit = new JLabel("Configuración", SwingConstants.CENTER);
-        lblTit.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        lblTit.setForeground(TEXT_WHITE);
-        lblTit.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JButton btnItemCuenta = crearBotonSecundario("Cuenta y Privacidad");
-        btnItemCuenta.setMaximumSize(new Dimension(320, 38));
-        btnItemCuenta.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btnItemCuenta.addActionListener(e -> cambiarPantalla("EDIT_PROFILE"));
-
-        JButton btnItemNotif = crearBotonSecundario("Notificaciones");
-        btnItemNotif.setMaximumSize(new Dimension(320, 38));
-        btnItemNotif.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btnItemNotif.addActionListener(e -> cambiarPantalla("NOTIFICACIONES"));
-
-        JButton btnItemLogout = new JButton("Cerrar Sesión") {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(60, 20, 20));
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-                g2.setColor(new Color(150, 40, 40));
-                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        btnItemLogout.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        btnItemLogout.setForeground(new Color(248, 113, 113));
-        btnItemLogout.setContentAreaFilled(false);
-        btnItemLogout.setBorderPainted(false);
-        btnItemLogout.setMaximumSize(new Dimension(320, 40));
-        btnItemLogout.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btnItemLogout.setFocusPainted(false);
-        btnItemLogout.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        btnItemLogout.addActionListener(e -> {
-            int resp = JOptionPane.showConfirmDialog(this, "¿Estás seguro de que quieres cerrar sesión?", "Cerrar Sesión", JOptionPane.YES_NO_OPTION);
-            if (resp == JOptionPane.YES_OPTION) {
-                if (socketCliente != null) socketCliente.desconectar();
-                rootCardLayout.show(rootContainer, "AUTH");
-                authCardLayout.show(authContainer, "LANDING");
-            }
-        });
-
-        pnl.add(lblTit);
-        pnl.add(Box.createVerticalStrut(20));
-        pnl.add(btnItemCuenta);
-        pnl.add(Box.createVerticalStrut(10));
-        pnl.add(btnItemNotif);
-        pnl.add(Box.createVerticalStrut(25));
-        pnl.add(btnItemLogout);
-
-        root.add(pnl, BorderLayout.NORTH);
-        return root;
-    }
-
-    // =========================================================================
-    // VISTA DE AUTENTICACIÓN
-    // =========================================================================
-    private JPanel crearVistaAutenticacionMobile() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBackground(BG_PHONE);
-
-        authCardLayout = new CardLayout();
-        authContainer = new JPanel(authCardLayout);
-        authContainer.setOpaque(false);
-        authContainer.setPreferredSize(new Dimension(380, 540));
-
-        authContainer.add(crearCardLandingOpciones(), "LANDING");
-        authContainer.add(crearCardLoginInsta(), "LOGIN");
-        authContainer.add(crearCardRegistroInsta(), "REGISTRO");
-
-        panel.add(authContainer);
-        authCardLayout.show(authContainer, "LANDING");
-        return panel;
-    }
-
-    private JPanel crearCardLandingOpciones() {
-        JPanel card = new JPanel();
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBackground(BG_SURFACE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER_LINE, 1, true),
-                new EmptyBorder(40, 25, 40, 25)
-        ));
-
-        JLabel lblLogo = new JLabel("INSTA+", SwingConstants.CENTER) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-                g2.setPaint(new GradientPaint(0, 0, G_ORANGE, getWidth(), 0, G_PINK));
-                g2.setFont(getFont());
-                FontMetrics fm = g2.getFontMetrics();
-                g2.drawString(getText(), (getWidth() - fm.stringWidth(getText())) / 2, fm.getAscent());
-                g2.dispose();
-            }
-        };
-        lblLogo.setFont(new Font("Segoe UI Black", Font.BOLD, 36));
-        lblLogo.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JLabel lblSlogan = new JLabel("Comparte momentos con amigos", SwingConstants.CENTER);
-        lblSlogan.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        lblSlogan.setForeground(TEXT_MUTED);
-        lblSlogan.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JButton btnIrLogin = crearBotonGradiente("Iniciar Sesión", 300, 40);
-        btnIrLogin.addActionListener(e -> authCardLayout.show(authContainer, "LOGIN"));
-
-        JButton btnIrReg = crearBotonSecundario("Crear Cuenta Nueva");
-        btnIrReg.setPreferredSize(new Dimension(300, 40));
-        btnIrReg.setMaximumSize(new Dimension(300, 40));
-        btnIrReg.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btnIrReg.addActionListener(e -> authCardLayout.show(authContainer, "REGISTRO"));
-
-        card.add(Box.createVerticalStrut(20));
-        card.add(lblLogo);
-        card.add(Box.createVerticalStrut(6));
-        card.add(lblSlogan);
-        card.add(Box.createVerticalStrut(50));
-        card.add(btnIrLogin);
-        card.add(Box.createVerticalStrut(14));
-        card.add(btnIrReg);
-
-        return card;
-    }
-
-    private JPanel crearCardLoginInsta() {
-        JPanel card = new JPanel();
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBackground(BG_SURFACE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER_LINE, 1, true),
-                new EmptyBorder(30, 25, 30, 25)
-        ));
-
-        JLabel lblLogo = new JLabel("INSTA+", SwingConstants.CENTER);
-        lblLogo.setFont(new Font("Segoe UI Black", Font.BOLD, 28));
-        lblLogo.setForeground(TEXT_WHITE);
-        lblLogo.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JLabel lblUser = crearEtiquetaCampo("Usuario (Username):");
-        JTextField txtUser = new JTextField();
-        estilizarCampoTexto(txtUser);
-
-        JLabel lblPass = crearEtiquetaCampo("Contraseña:");
-        JPasswordField txtPass = new JPasswordField();
-        JPanel passRow = crearCampoPasswordConOjo(txtPass);
-
-        JButton btnLogin = crearBotonGradiente("Iniciar Sesión", 300, 38);
-        btnLogin.addActionListener(e -> {
-            String u = txtUser.getText().trim();
-            String p = new String(txtPass.getPassword());
-            try {
-                Usuario userAuth = InstaFileManager.autenticarInsta(u, p);
-                if (userAuth != null) {
-                    usuarioActual = userAuth;
-                    usuarioPerfilVisitado = userAuth.getUsername();
-                    iniciarConexionSocket();
-                    rootCardLayout.show(rootContainer, "APP");
-                    cambiarPantalla("TIMELINE");
-                } else {
-                    JOptionPane.showMessageDialog(this, "Usuario o contraseña incorrectos.", "Error", JOptionPane.ERROR_MESSAGE);
-                }
-            } catch (CuentaDesactivadaException ex) {
-                int resp = JOptionPane.showConfirmDialog(this, ex.getMessage() + "\n¿Deseas reactivar tu cuenta?", "Cuenta Desactivada", JOptionPane.YES_NO_OPTION);
-                if (resp == JOptionPane.YES_OPTION) {
-                    Usuario inact = InstaFileManager.buscarUsuario(u);
-                    if (inact != null) {
-                        inact.setActivo(true);
-                        InstaFileManager.actualizarUsuario(inact);
-                        JOptionPane.showMessageDialog(this, "¡Cuenta reactivada! Ya puedes entrar.");
-                    }
-                }
-            }
-        });
-
-        JButton btnVolver = new JButton("Volver a inicio");
-        btnVolver.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        btnVolver.setForeground(TEXT_MUTED);
-        btnVolver.setContentAreaFilled(false);
-        btnVolver.setBorderPainted(false);
-        btnVolver.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnVolver.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btnVolver.addActionListener(e -> authCardLayout.show(authContainer, "LANDING"));
-
-        card.add(lblLogo);
-        card.add(Box.createVerticalStrut(18));
-        card.add(lblUser);
-        card.add(txtUser);
-        card.add(Box.createVerticalStrut(8));
-        card.add(lblPass);
-        card.add(passRow);
-        card.add(Box.createVerticalStrut(18));
-        card.add(btnLogin);
-        card.add(Box.createVerticalStrut(12));
-        card.add(btnVolver);
-
-        return card;
-    }
-
-    private JPanel crearCardRegistroInsta() {
-        JPanel card = new JPanel();
-        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBackground(BG_SURFACE);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER_LINE, 1, true),
-                new EmptyBorder(16, 25, 16, 25)
-        ));
-
-        JLabel lblTit = new JLabel("Crear Cuenta", SwingConstants.CENTER);
-        lblTit.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        lblTit.setForeground(TEXT_WHITE);
-        lblTit.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JLabel lblNom = crearEtiquetaCampo("Nombre completo:");
-        JTextField txtNombre = new JTextField();
-        estilizarCampoTexto(txtNombre);
-
-        JLabel lblUsr = crearEtiquetaCampo("Username único:");
-        JTextField txtUser = new JTextField();
-        estilizarCampoTexto(txtUser);
-
-        JLabel lblPass = crearEtiquetaCampo("Contraseña (mín. 8 caracteres, 1 número o símbolo):");
-        JPasswordField txtPass = new JPasswordField();
-        JPanel passRow = crearCampoPasswordConOjo(txtPass);
-
-        JLabel lblPassConfirm = crearEtiquetaCampo("Confirmar contraseña:");
-        JPasswordField txtPassConfirm = new JPasswordField();
-        JPanel passConfirmRow = crearCampoPasswordConOjo(txtPassConfirm);
-
-        JPanel rowGenEdad = new JPanel(new GridLayout(1, 2, 8, 0));
-        rowGenEdad.setOpaque(false);
-        rowGenEdad.setMaximumSize(new Dimension(300, 34));
-
-        JSpinner spinEdad = new JSpinner(new SpinnerNumberModel(20, 13, 100, 1));
-        JComboBox<String> cbGen = new JComboBox<>(new String[]{"Género: M", "Género: F"});
-        rowGenEdad.add(spinEdad);
-        rowGenEdad.add(cbGen);
-
-        final String[] rutaFoto = {null};
-        JButton btnFoto = crearBotonSecundario("Seleccionar Foto de Perfil");
-        btnFoto.setMaximumSize(new Dimension(300, 32));
-        btnFoto.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btnFoto.addActionListener(e -> {
-            JFileChooser fc = new JFileChooser();
-            if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-                rutaFoto[0] = fc.getSelectedFile().getAbsolutePath();
-                btnFoto.setText("Foto: " + fc.getSelectedFile().getName());
-            }
-        });
-
-        JButton btnRegistrar = crearBotonGradiente("Registrarse", 300, 36);
-        btnRegistrar.addActionListener(e -> {
-            String nom = txtNombre.getText().trim();
-            String usr = txtUser.getText().trim().toLowerCase();
-            String pas = new String(txtPass.getPassword());
-            String pasConf = new String(txtPassConfirm.getPassword());
-            char gen = cbGen.getSelectedIndex() == 0 ? 'M' : 'F';
-            int edad = (Integer) spinEdad.getValue();
-
-            if (nom.isEmpty() || usr.isEmpty() || pas.isEmpty() || pasConf.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Por favor completa todos los campos requeridos.", "Campos incompletos", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-
-            if (!pas.equals(pasConf)) {
-                JOptionPane.showMessageDialog(this, "Las contraseñas no coinciden. Por favor verifícalas.", "Error de Contraseña", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            if (!esPasswordValido(pas)) {
-                JOptionPane.showMessageDialog(this, 
-                    "La contraseña no es válida:\n• Debe tener al menos 8 caracteres.\n• Debe incluir al menos un número (0-9) o un carácter especial (!@#$%...).", 
-                    "Contraseña Insegura", 
-                    JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-
-            Usuario nuevo = new Usuario(usr, pas, false, nom, gen, edad, rutaFoto[0]);
-            if (InstaFileManager.registrarUsuarioInsta(nuevo)) {
-                JOptionPane.showMessageDialog(this, "¡Cuenta @" + usr + " creada con éxito!", "Registro Exitoso", JOptionPane.INFORMATION_MESSAGE);
-                usuarioActual = nuevo;
-                usuarioPerfilVisitado = nuevo.getUsername();
-                iniciarConexionSocket();
-                rootCardLayout.show(rootContainer, "APP");
-                cambiarPantalla("TIMELINE");
-            } else {
-                JOptionPane.showMessageDialog(this, "Ese username @" + usr + " ya está en uso. Elige otro.", "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        });
-
-        JButton btnVolver = new JButton("Volver a inicio");
-        btnVolver.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        btnVolver.setForeground(TEXT_MUTED);
-        btnVolver.setContentAreaFilled(false);
-        btnVolver.setBorderPainted(false);
-        btnVolver.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnVolver.setAlignmentX(Component.CENTER_ALIGNMENT);
-        btnVolver.addActionListener(e -> authCardLayout.show(authContainer, "LANDING"));
-
-        card.add(lblTit);
-        card.add(Box.createVerticalStrut(6));
-        card.add(lblNom);
-        card.add(txtNombre);
-        card.add(Box.createVerticalStrut(4));
-        card.add(lblUsr);
-        card.add(txtUser);
-        card.add(Box.createVerticalStrut(4));
-        card.add(lblPass);
-        card.add(passRow);
-        card.add(Box.createVerticalStrut(4));
-        card.add(lblPassConfirm);
-        card.add(passConfirmRow);
-        card.add(Box.createVerticalStrut(6));
-        card.add(rowGenEdad);
-        card.add(Box.createVerticalStrut(6));
-        card.add(btnFoto);
-        card.add(Box.createVerticalStrut(10));
-        card.add(btnRegistrar);
-        card.add(Box.createVerticalStrut(6));
-        card.add(btnVolver);
-
-        return card;
-    }
-
-    // =========================================================================
-    // UTILIDADES
-    // =========================================================================
-    private JPanel crearCampoPasswordConOjo(JPasswordField pf) {
-        JPanel wrapper = new JPanel(new BorderLayout());
-        wrapper.setMaximumSize(new Dimension(300, 36));
-        wrapper.setPreferredSize(new Dimension(300, 36));
-        wrapper.setBackground(BG_INPUT);
-        wrapper.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER_LINE, 1, true),
-                new EmptyBorder(2, 6, 2, 4)
-        ));
-        wrapper.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        pf.setBackground(BG_INPUT);
-        pf.setForeground(TEXT_WHITE);
-        pf.setCaretColor(Color.WHITE);
-        pf.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        pf.setBorder(null);
-
-        JButton btnEye = new JButton("Ver") {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(BG_INPUT);
-                g2.fillRect(0, 0, getWidth(), getHeight());
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        btnEye.setFont(new Font("Segoe UI", Font.BOLD, 10));
-        btnEye.setForeground(TEXT_MUTED);
-        btnEye.setContentAreaFilled(false);
-        btnEye.setBorderPainted(false);
-        btnEye.setFocusPainted(false);
-        btnEye.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        char defaultEcho = pf.getEchoChar();
-        btnEye.addActionListener(e -> {
-            if (pf.getEchoChar() == (char) 0) {
-                pf.setEchoChar(defaultEcho);
-                btnEye.setText("Ver");
-            } else {
-                pf.setEchoChar((char) 0);
-                btnEye.setText("Ocultar");
-            }
-        });
-
-        wrapper.add(pf, BorderLayout.CENTER);
-        wrapper.add(btnEye, BorderLayout.EAST);
-        return wrapper;
-    }
-
-    private JLabel crearEtiquetaCampo(String texto) {
-        JLabel lbl = new JLabel(texto);
-        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        lbl.setForeground(TEXT_MUTED);
-        lbl.setAlignmentX(Component.CENTER_ALIGNMENT);
-        return lbl;
-    }
-    
-    public static boolean esPasswordValido(String password) {
-        if (password == null || password.length() < 8) {
-            return false;
+        Nodo<MensajeInbox> n = todos.getHead();
+        while (n != null) {
+            MensajeInbox m = n.getDato();
+            boolean pertenece = (m.getEmisor().equalsIgnoreCase(u1) && m.getReceptor().equalsIgnoreCase(u2)) ||
+                                (m.getEmisor().equalsIgnoreCase(u2) && m.getReceptor().equalsIgnoreCase(u1));
+            if (!pertenece) filtrados.agregar(m);
+            n = n.getSiguiente();
         }
-        return password.matches(".*[0-9!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>\\/?].*");
+        guardarListaGenerica(f, filtrados);
     }
-    
-    public static JComponent crearAvatarCircular(String username, int diametro, boolean tieneStoryRing, String badgeOverlay) {
-        JComponent comp = new JComponent() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-                int offset = tieneStoryRing ? 3 : 0;
-                int size = diametro - (offset * 2);
+    public static synchronized Lista<Stickers> cargarStickers(String username) {
+        File fStk = new File(RUTA_INSTA + "/" + username + "/stickers.ins");
+        Lista<Stickers> stickers = cargarListaGenerica(fStk);
 
-                if (tieneStoryRing) {
-                    GradientPaint gp = new GradientPaint(0, 0, G_ORANGE, diametro, diametro, G_PINK);
-                    g2.setPaint(gp);
-                    g2.setStroke(new BasicStroke(2.0f));
-                    g2.drawOval(1, 1, diametro - 3, diametro - 3);
-                }
+        if (stickers.estaVacia()) {
+            stickers.agregar(new Stickers("Feliz", null, true));
+            stickers.agregar(new Stickers("Triste", null, true));
+            stickers.agregar(new Stickers("Corazon", null, true));
+            stickers.agregar(new Stickers("Risa", null, true));
+            stickers.agregar(new Stickers("Aplauso", null, true));
+            guardarListaGenerica(fStk, stickers);
+        }
 
-                Usuario u = InstaFileManager.buscarUsuario(username);
-                boolean fotoPintada = false;
-
-                if (u != null && u.getFotoPerfil() != null) {
-                    File f = new File(u.getFotoPerfil());
-                    if (f.exists()) {
-                        try {
-                            ImageIcon icon = new ImageIcon(f.getAbsolutePath());
-                            Image img = icon.getImage();
-                            Shape clipAnterior = g2.getClip();
-                            g2.setClip(new java.awt.geom.Ellipse2D.Float(offset, offset, size, size));
-                            g2.drawImage(img, offset, offset, size, size, null);
-                            g2.setClip(clipAnterior);
-                            fotoPintada = true;
-                        } catch (Exception ignored) {}
+        File persDir = new File(RUTA_INSTA + "/" + username + "/stickers_personales");
+        if (persDir.exists()) {
+            File[] files = persDir.listFiles((d, name) -> {
+                String n = name.toLowerCase();
+                return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg");
+            });
+            if (files != null) {
+                for (File f : files) {
+                    boolean existe = false;
+                    Nodo<Stickers> cur = stickers.getHead();
+                    while (cur != null) {
+                        if (cur.getDato().getRutaArchivo() != null && cur.getDato().getRutaArchivo().equalsIgnoreCase(f.getAbsolutePath())) {
+                            existe = true;
+                            break;
+                        }
+                        cur = cur.getSiguiente();
+                    }
+                    if (!existe) {
+                        stickers.agregar(new Stickers(f.getName(), f.getAbsolutePath(), false));
                     }
                 }
-
-                if (!fotoPintada) {
-                    int hash = Math.abs((username != null ? username : "user").hashCode());
-                    Color[] avatarColors = {
-                        new Color(59, 130, 246), new Color(236, 72, 153), new Color(139, 92, 246), new Color(16, 185, 129), new Color(245, 158, 11)
-                    };
-                    g2.setColor(avatarColors[hash % avatarColors.length]);
-                    g2.fillOval(offset, offset, size, size);
-                    g2.setColor(Color.WHITE);
-                    g2.setFont(new Font("Segoe UI", Font.BOLD, diametro / 3 + 2));
-                    String letter = username != null && !username.isEmpty() ? username.substring(0, 1).toUpperCase() : "U";
-                    FontMetrics fm = g2.getFontMetrics();
-                    g2.drawString(letter, offset + (size - fm.stringWidth(letter)) / 2, offset + (size + fm.getAscent() - fm.getDescent()) / 2);
-                }
-
-                if (badgeOverlay != null) {
-                    g2.setColor(IG_BLUE);
-                    g2.fillOval(diametro - 15, diametro - 15, 14, 14);
-                    g2.setColor(Color.WHITE);
-                    g2.setFont(new Font("Segoe UI", Font.BOLD, 11));
-                    g2.drawString("+", diametro - 12, diametro - 4);
-                }
-                g2.dispose();
             }
-        };
-        comp.setPreferredSize(new Dimension(diametro, diametro));
-        return comp;
-    }
-
-    private void estilizarCampoTexto(JTextField tf) {
-        tf.setMaximumSize(new Dimension(300, 36));
-        tf.setPreferredSize(new Dimension(300, 36));
-        tf.setBackground(BG_INPUT);
-        tf.setForeground(TEXT_WHITE);
-        tf.setCaretColor(Color.WHITE);
-        tf.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        tf.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(BORDER_LINE, 1, true),
-                new EmptyBorder(4, 10, 4, 10)
-        ));
-        tf.setAlignmentX(Component.CENTER_ALIGNMENT);
-    }
-
-    private JButton crearBotonGradiente(String texto, int w, int h) {
-        JButton btn = new JButton(texto) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setPaint(new GradientPaint(0, 0, G_ORANGE, getWidth(), 0, G_PINK));
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        btn.setForeground(Color.WHITE);
-        btn.setContentAreaFilled(false);
-        btn.setBorderPainted(false);
-        btn.setFocusPainted(false);
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btn.setPreferredSize(new Dimension(w, h));
-        btn.setMaximumSize(new Dimension(w, h));
-        btn.setAlignmentX(Component.CENTER_ALIGNMENT);
-        return btn;
-    }
-
-    private JButton crearBotonSecundario(String texto) {
-        JButton btn = new JButton(texto) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(getModel().isRollover() ? BG_HOVER : BG_INPUT);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-                g2.setColor(BORDER_LINE);
-                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        btn.setForeground(TEXT_WHITE);
-        btn.setContentAreaFilled(false);
-        btn.setBorderPainted(false);
-        btn.setFocusPainted(false);
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        return btn;
+        }
+        return stickers;
     }
 }
