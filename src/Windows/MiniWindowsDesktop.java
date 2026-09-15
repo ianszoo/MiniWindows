@@ -127,7 +127,7 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
-    // GESTIÓN DE VENTANAS CON INSTANCIA ÚNICA Y BORDES MODERNOS TIPO WINDOWS 10/11
+    // GESTIÓN DE VENTANAS
     private void gestionarVentana(String appId, String titulo, JComponent content, int ancho, int alto, boolean darkTheme) {
         JInternalFrame frame = ventanasAbiertas.get(appId);
 
@@ -169,8 +169,8 @@ public class MiniWindowsDesktop extends JFrame {
             }
         }
 
-        int posX = Math.max(25, (desktopPane.getWidth() - ancho) / 2 + (ventanasAbiertas.size() * 15));
-        int posY = Math.max(25, (desktopPane.getHeight() - alto) / 2 + (ventanasAbiertas.size() * 15));
+        int posX = Math.max(25, (desktopPane.getWidth() - ancho) / 2 + (ventanasAbiertas.size() * 18));
+        int posY = Math.max(25, (desktopPane.getHeight() - alto) / 2 + (ventanasAbiertas.size() * 18));
         newFrame.setLocation(posX, posY);
 
         newFrame.addInternalFrameListener(new InternalFrameAdapter() {
@@ -456,13 +456,14 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     private void cerrarSesion() {
+        motorAudio.detener();
         dispose();
         SwingUtilities.invokeLater(() -> new WindowsLoginFrame().setVisible(true));
     }
 
     // ENRUTADORES DE APLICACIONES
     private void abrirExplorador(File carpetaInicial) { 
-        gestionarVentana("EXPLORADOR", "Explorador de archivos", crearExploradorReal(carpetaInicial), 920, 600, false); 
+        gestionarVentana("EXPLORADOR", "Explorador de archivos", crearExploradorReal(carpetaInicial), 940, 610, false); 
     }
     private void abrirEditor(File archivoParaAbrir) { 
         gestionarVentana("EDITOR", "Bloc de Notas - Editor con Formato", crearEditorReal(archivoParaAbrir), 860, 560, true); 
@@ -476,9 +477,13 @@ public class MiniWindowsDesktop extends JFrame {
     private void abrirReproductor(File cancionParaTocar) { 
         gestionarVentana("REPRODUCTOR", "Media Player", crearReproductorReal(cancionParaTocar), 960, 600, true); 
     }
+    
+    // PERMITE ABRIR MÚLTIPLES INSTANCIAS DE INSTA+ (DOBLE CELULAR)
     private void abrirInsta() { 
-        gestionarVentana("INSTA", "INSTA+ - Red Social Integrada", new InstaPanel(usuarioActual), 460, 750, true); 
+        String instanciaId = "INSTA_" + System.currentTimeMillis();
+        gestionarVentana(instanciaId, "INSTA+ - Red Social Móvil (" + usuarioActual.getUsername() + ")", new InstaPanel(usuarioActual), 460, 750, true); 
     }
+
     private void abrirCuentasUsuario() {
         if (!usuarioActual.isEsAdmin()) {
             JOptionPane.showMessageDialog(this, "Acceso denegado: Solo el Administrador puede gestionar las cuentas.", "Seguridad", JOptionPane.WARNING_MESSAGE);
@@ -532,7 +537,7 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // PANEL "CUENTAS DE USUARIO" (RÉPLICA EXACTA)
+    // PANEL "CUENTAS DE USUARIO"
     // =========================================================================
     private JPanel crearPanelCuentasUsuario() {
         JPanel p = new JPanel(new BorderLayout(0, 8));
@@ -770,9 +775,7 @@ public class MiniWindowsDesktop extends JFrame {
                         
                         File uDir = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usr);
                         if (uDir.exists()) {
-                            File[] fArr = uDir.listFiles();
-                            if (fArr != null) for (File f : fArr) f.delete();
-                            uDir.delete();
+                            eliminarDirectorioRecursivo(uDir);
                         }
                         recargarTabla.run();
                     } catch (Exception ignored) {}
@@ -786,7 +789,7 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 1. EXPLORADOR DE ARCHIVOS CON JTREE COMPLETO Y MOVER/PEGAR EN CARPETAS
+    // 1. EXPLORADOR DE ARCHIVOS CON ORGANIZACIÓN POR HILOS (THREADS) Y JTREE
     // =========================================================================
     private JPanel crearExploradorReal(File carpetaInicial) {
         JPanel p = new JPanel(new BorderLayout(0, 0));
@@ -802,7 +805,7 @@ public class MiniWindowsDesktop extends JFrame {
         Stack<File> historialAtras = new Stack<>();
         Stack<File> historialAdelante = new Stack<>();
 
-        // 1. Barra de Navegación y Herramientas Superior
+        // Barra de Navegación y Herramientas Superior
         JPanel topContainer = new JPanel(new BorderLayout());
         topContainer.setBackground(new Color(248, 249, 251));
         topContainer.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(225, 230, 235)));
@@ -829,6 +832,7 @@ public class MiniWindowsDesktop extends JFrame {
 
         JButton btnNuevaCarpeta = new JButton("Nueva carpeta");
         JButton btnNuevoDoc = new JButton("Nuevo documento");
+        JButton btnOrganizar = new JButton("⚡ Organizar");
         JButton btnImportar = new JButton("Importar");
         JButton btnMoverA = new JButton("Mover a...");
         JButton btnRenombrar = new JButton("Renombrar");
@@ -841,6 +845,7 @@ public class MiniWindowsDesktop extends JFrame {
 
         actionsBar.add(btnNuevaCarpeta);
         actionsBar.add(btnNuevoDoc);
+        actionsBar.add(btnOrganizar);
         actionsBar.add(btnImportar);
         actionsBar.add(btnMoverA);
         actionsBar.add(btnRenombrar);
@@ -855,13 +860,12 @@ public class MiniWindowsDesktop extends JFrame {
         topContainer.add(actionsBar, BorderLayout.SOUTH);
         p.add(topContainer, BorderLayout.NORTH);
 
-        // 2. JTree Completo con Archivos y Subcarpetas
+        // JTree Completo
         DefaultMutableTreeNode raizNodo = new DefaultMutableTreeNode(raizPermitida.getName());
         DefaultTreeModel modeloArbol = new DefaultTreeModel(raizNodo);
         JTree tree = new JTree(modeloArbol);
         tree.setBackground(new Color(250, 251, 253));
 
-        // Renderizador con Iconos para el Árbol
         tree.setCellRenderer(new DefaultTreeCellRenderer() {
             @Override
             public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
@@ -989,7 +993,25 @@ public class MiniWindowsDesktop extends JFrame {
         };
         cargarContenido.run();
 
-        // DOBLE CLIC EN LA TABLA
+        // EJECUCIÓN OBLIGATORIA DEL ORGANIZADOR EN HILO APARTE (THREADS)
+        btnOrganizar.addActionListener(e -> {
+            File carpetaAOrganizar = carpetaActual[0];
+            btnOrganizar.setEnabled(false);
+            btnOrganizar.setText("Organizando...");
+
+            Thread hiloOrganizador = new Thread(() -> {
+                organizarArchivos(carpetaAOrganizar);
+                SwingUtilities.invokeLater(() -> {
+                    btnOrganizar.setEnabled(true);
+                    btnOrganizar.setText("⚡ Organizar");
+                    cargarContenido.run();
+                    JOptionPane.showMessageDialog(this, "¡Archivos clasificados por tipo exitosamente!", "Organizador", JOptionPane.INFORMATION_MESSAGE);
+                });
+            });
+            hiloOrganizador.setDaemon(true);
+            hiloOrganizador.start();
+        });
+
         tableArchivos.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -1010,7 +1032,6 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
-        // INTERACCIÓN Y DOBLE CLIC EN EL JTREE
         tree.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -1025,7 +1046,6 @@ public class MiniWindowsDesktop extends JFrame {
                     if (res.exists()) {
                         if (res.isDirectory()) {
                             carpetaActual[0] = res;
-                            // Actualizar tabla sin reiniciar el árbol
                             modelTabla.setRowCount(0);
                             String rutaDisplay = carpetaActual[0].getAbsolutePath().replace(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA).getAbsolutePath(), "Z:");
                             lblRutaActual.setText("  📁 " + rutaDisplay);
@@ -1106,14 +1126,17 @@ public class MiniWindowsDesktop extends JFrame {
         });
 
         btnNuevoDoc.addActionListener(e -> {
-            String nom = JOptionPane.showInputDialog(this, "Nombre del documento:", "texto.txt");
+            String nom = JOptionPane.showInputDialog(this, "Nombre del documento:", "nuevo_documento.sop");
             if (nom != null && !nom.trim().isEmpty()) {
+                if (!nom.endsWith(".sop") && !nom.endsWith(".txt")) {
+                    nom += ".sop";
+                }
                 File nuevo = new File(carpetaActual[0], nom.trim());
                 try {
                     if (nuevo.getName().endsWith(".sop")) {
                         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(nuevo))) {
                             DefaultStyledDocument doc = new DefaultStyledDocument();
-                            doc.insertString(0, "Nuevo documento formateado.", null);
+                            doc.insertString(0, "Nuevo documento con formato persistente.", null);
                             oos.writeObject(doc);
                         }
                     } else {
@@ -1141,7 +1164,6 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
-        // NUEVO: MOVER A OTRA CARPETA DIRECTAMENTE
         btnMoverA.addActionListener(e -> {
             int row = tableArchivos.getSelectedRow();
             if (row == -1) {
@@ -1153,7 +1175,7 @@ public class MiniWindowsDesktop extends JFrame {
 
             File[] subcarpetas = carpetaActual[0].listFiles(File::isDirectory);
             if (subcarpetas == null || subcarpetas.length == 0) {
-                JOptionPane.showMessageDialog(this, "No hay subcarpetas dentro de esta ubicación para mover el archivo. Cree una carpeta primero.");
+                JOptionPane.showMessageDialog(this, "No hay subcarpetas dentro de esta ubicación para mover el archivo.");
                 return;
             }
 
@@ -1192,7 +1214,6 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
-        // PEGAR INTELIGENTE: Si hay una carpeta seleccionada, pega adentro de ella
         btnPegar.addActionListener(e -> {
             if (archivoPortapapeles == null || !archivoPortapapeles.exists()) {
                 JOptionPane.showMessageDialog(this, "El portapapeles está vacío.");
@@ -1243,7 +1264,7 @@ public class MiniWindowsDesktop extends JFrame {
                 File aEliminar = new File(carpetaActual[0], nombre);
                 int resp = JOptionPane.showConfirmDialog(this, "¿Desea eliminar '" + nombre + "'?", "Eliminar", JOptionPane.YES_NO_OPTION);
                 if (resp == JOptionPane.YES_OPTION) {
-                    aEliminar.delete();
+                    eliminarDirectorioRecursivo(aEliminar);
                     cargarContenido.run();
                 }
             }
@@ -1281,7 +1302,6 @@ public class MiniWindowsDesktop extends JFrame {
         return idx != -1 ? name.substring(idx).toUpperCase() : "";
     }
 
-    // Pobla el árbol con carpetas y archivos
     private void poblarNodos(File dir, DefaultMutableTreeNode nodo) {
         File[] archivos = dir.listFiles();
         if (archivos != null) {
@@ -1300,6 +1320,7 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
+    // Clasificación de archivos para la función "Organizar"
     private void organizarArchivos(File carpeta) {
         File imgDir = new File(carpeta, "Mis Imágenes");
         File docDir = new File(carpeta, "Mis Documentos");
@@ -1316,7 +1337,7 @@ public class MiniWindowsDesktop extends JFrame {
                             Files.move(f.toPath(), new File(imgDir, f.getName()).toPath(), StandardCopyOption.REPLACE_EXISTING);
                         } else if (name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".m4a")) {
                             Files.move(f.toPath(), new File(musDir, f.getName()).toPath(), StandardCopyOption.REPLACE_EXISTING);
-                        } else if (!name.endsWith(".sop")) {
+                        } else if (!name.endsWith(".sop") || !f.getName().equalsIgnoreCase("usuarios.sop")) {
                             Files.move(f.toPath(), new File(docDir, f.getName()).toPath(), StandardCopyOption.REPLACE_EXISTING);
                         }
                     } catch (Exception ignored) {}
@@ -1325,8 +1346,20 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
+    private boolean eliminarDirectorioRecursivo(File elemento) {
+        if (elemento.isDirectory()) {
+            File[] hijos = elemento.listFiles();
+            if (hijos != null) {
+                for (File h : hijos) {
+                    eliminarDirectorioRecursivo(h);
+                }
+            }
+        }
+        return elemento.delete();
+    }
+
     // =========================================================================
-    // 2. EDITOR DE TEXTO (CON GUARDADO DIRECTO EN ARCHIVO ABIERTO Y GUARDAR COMO)
+    // 2. EDITOR DE TEXTO CON FORMATO BINARIO
     // =========================================================================
     private JPanel crearEditorReal(File archivoParaAbrir) {
         JPanel p = new JPanel(new BorderLayout());
@@ -1440,13 +1473,11 @@ public class MiniWindowsDesktop extends JFrame {
         JButton btnAplicar = crearBotonPersonalizado("Aplicar", ACCENT_BLUE, new Color(25, 145, 255));
         btnAplicar.addActionListener(e -> actualizarFormato.run());
 
-        // BOTÓN 1: GUARDAR (SOBREESCRIBE DIRECTAMENTE EN EL ARCHIVO ABIERTO)
         JButton btnGuardar = crearBotonPersonalizado("Guardar", ACCENT_BLUE, new Color(25, 145, 255));
         btnGuardar.addActionListener(e -> {
             if (archivoActualEnEditor[0] != null) {
                 guardarArchivoDesdeEditor(textPane, archivoActualEnEditor[0]);
             } else {
-                // Si es un documento nuevo sin archivo asociado, pedir dónde guardar
                 JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos"));
                 if (fc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
                     File arch = fc.getSelectedFile();
@@ -1459,7 +1490,6 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
-        // BOTÓN 2: GUARDAR COMO... (PERMITE ELEGIR NUEVO NOMBRE O FORMATO .SOP / .TXT)
         JButton btnGuardarComo = crearBotonPersonalizado("Guardar como...", new Color(48, 48, 54), new Color(68, 70, 80));
         btnGuardarComo.addActionListener(e -> {
             JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Mis Documentos"));
@@ -1684,7 +1714,7 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 3. CONSOLA CMD
+    // 3. CONSOLA CMD CON GESTIÓN EXACTA DE PERMISOS ADMIN VS ESTÁNDAR
     // =========================================================================
     private JPanel crearCmdReal() {
         JPanel p = new JPanel(new BorderLayout());
@@ -1696,7 +1726,11 @@ public class MiniWindowsDesktop extends JFrame {
         areaCmd.setBorder(new EmptyBorder(10, 10, 10, 10));
         p.add(new JScrollPane(areaCmd), BorderLayout.CENTER);
 
-        final File[] dirActual = {new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername())};
+        File dirInicial = usuarioActual.isEsAdmin()
+                ? new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA)
+                : new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername());
+        
+        final File[] dirActual = {dirInicial};
 
         JTextField input = new JTextField();
         input.setBackground(new Color(12, 12, 12));
@@ -1706,7 +1740,8 @@ public class MiniWindowsDesktop extends JFrame {
         input.setBorder(new EmptyBorder(6, 6, 6, 6));
 
         JPanel sur = new JPanel(new BorderLayout());
-        JLabel lblPrompt = new JLabel(" Z:\\" + usuarioActual.getUsername() + "> ");
+        String promptInicial = " " + dirActual[0].getPath().replace(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA).getAbsolutePath(), "Z:") + "> ";
+        JLabel lblPrompt = new JLabel(promptInicial);
         lblPrompt.setForeground(new Color(0, 255, 100));
         lblPrompt.setBackground(new Color(12, 12, 12));
         lblPrompt.setOpaque(true);
@@ -1733,16 +1768,24 @@ public class MiniWindowsDesktop extends JFrame {
                     areaCmd.append(String.format("  %-16s %s\n", "rm <nombre>", "Elimina un archivo o carpeta."));
                     areaCmd.append(String.format("  %-16s %s\n", "cd <carpeta>", "Cambia al directorio indicado."));
                     areaCmd.append(String.format("  %-16s %s\n", "cd..", "Regresa a la carpeta anterior."));
-                    areaCmd.append(String.format("  %-16s %s\n", "dir", "Lista todos los archivos y carpetas."));
+                    areaCmd.append(String.format("  %-16s %s\n", "dir", "Lista todas las carpetas y archivos."));
                     areaCmd.append(String.format("  %-16s %s\n", "date", "Muestra la fecha actual del sistema."));
                     areaCmd.append(String.format("  %-16s %s\n", "time", "Muestra la hora actual del sistema."));
                     areaCmd.append(String.format("  %-16s %s\n", "cls", "Limpia la pantalla de la consola."));
-                    areaCmd.append(String.format("  %-16s %s\n", "help", "Muestra esta ayuda con todos los comandos."));
+                    areaCmd.append(String.format("  %-16s %s\n", "help", "Muestra esta lista de comandos."));
                     break;
 
                 case "mkdir":
-                    if (!arg.isEmpty() && new File(dirActual[0], arg).mkdir()) areaCmd.append("Directorio creado exitosamente.\n");
-                    else areaCmd.append("Error al crear carpeta.\n");
+                    if (!arg.isEmpty()) {
+                        File nueva = new File(dirActual[0], arg);
+                        if (nueva.mkdir()) {
+                            areaCmd.append("Directorio creado exitosamente.\n");
+                        } else {
+                            areaCmd.append("Error al crear carpeta o ya existe.\n");
+                        }
+                    } else {
+                        areaCmd.append("Uso: mkdir <nombre>\n");
+                    }
                     break;
 
                 case "rm":
@@ -1751,21 +1794,29 @@ public class MiniWindowsDesktop extends JFrame {
                     } else {
                         File aBorrar = new File(dirActual[0], arg);
                         if (!aBorrar.exists()) {
-                            areaCmd.append("No se encontró el elemento.\n");
+                            areaCmd.append("No se encontró el archivo o directorio: " + arg + "\n");
                         } else {
-                            File raizPermitida = usuarioActual.isEsAdmin()
-                                    ? new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA)
-                                    : new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername());
+                            File raizSimulada = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA);
+                            File raizPersonal = new File(raizSimulada, usuarioActual.getUsername());
 
-                            if (!aBorrar.getAbsolutePath().startsWith(raizPermitida.getAbsolutePath())) {
-                                areaCmd.append("Acceso denegado: No tiene permisos fuera de su espacio personal.\n");
-                            } else if (!usuarioActual.isEsAdmin() && aBorrar.getAbsolutePath().equals(raizPermitida.getAbsolutePath())) {
-                                areaCmd.append("Acceso denegado: No puede eliminar su propia carpeta raíz.\n");
+                            // Validación de permisos estricta
+                            boolean tienePermiso;
+                            if (usuarioActual.isEsAdmin()) {
+                                // El Admin puede borrar cualquier subcarpeta de Z:\ (menos la raíz misma Z:\)
+                                tienePermiso = !aBorrar.getAbsolutePath().equals(raizSimulada.getAbsolutePath());
                             } else {
-                                if (aBorrar.delete()) {
-                                    areaCmd.append("Elemento eliminado exitosamente.\n");
+                                // Usuario estándar: SOLO dentro de su propia carpeta Z:\<username> (sin borrar su raíz)
+                                tienePermiso = aBorrar.getAbsolutePath().startsWith(raizPersonal.getAbsolutePath()) 
+                                        && !aBorrar.getAbsolutePath().equals(raizPersonal.getAbsolutePath());
+                            }
+
+                            if (!tienePermiso) {
+                                areaCmd.append("Acceso denegado: No tiene permisos para eliminar este elemento.\n");
+                            } else {
+                                if (eliminarDirectorioRecursivo(aBorrar)) {
+                                    areaCmd.append("Elemento '" + arg + "' eliminado exitosamente.\n");
                                 } else {
-                                    areaCmd.append("No se pudo eliminar el elemento.\n");
+                                    areaCmd.append("Error al eliminar el elemento.\n");
                                 }
                             }
                         }
@@ -1775,25 +1826,44 @@ public class MiniWindowsDesktop extends JFrame {
                 case "cd":
                     File destino = new File(dirActual[0], arg);
                     if (destino.exists() && destino.isDirectory()) {
-                        if (!usuarioActual.isEsAdmin() && !destino.getAbsolutePath().contains(usuarioActual.getUsername())) {
-                            areaCmd.append("Acceso denegado: Fuera del directorio personal.\n");
+                        File raizPersonal = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername());
+                        if (!usuarioActual.isEsAdmin() && !destino.getAbsolutePath().startsWith(raizPersonal.getAbsolutePath())) {
+                            areaCmd.append("Acceso denegado: Fuera del directorio personal de " + usuarioActual.getUsername() + ".\n");
                         } else {
                             dirActual[0] = destino;
                         }
-                    } else areaCmd.append("Ruta no válida.\n");
+                    } else {
+                        areaCmd.append("Ruta no válida o el directorio no existe.\n");
+                    }
                     break;
 
                 case "cd..":
                     File padre = dirActual[0].getParentFile();
-                    if (padre != null && (usuarioActual.isEsAdmin() || padre.getAbsolutePath().contains(usuarioActual.getUsername()))) {
-                        dirActual[0] = padre;
+                    File raizSimulada = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA);
+                    File raizPersonal = new File(raizSimulada, usuarioActual.getUsername());
+
+                    if (padre != null) {
+                        if (usuarioActual.isEsAdmin()) {
+                            if (padre.getAbsolutePath().startsWith(raizSimulada.getAbsolutePath())) {
+                                dirActual[0] = padre;
+                            }
+                        } else {
+                            if (padre.getAbsolutePath().startsWith(raizPersonal.getAbsolutePath())) {
+                                dirActual[0] = padre;
+                            }
+                        }
                     }
                     break;
 
                 case "dir":
                     File[] fList = dirActual[0].listFiles();
                     if (fList != null) {
-                        for (File f : fList) areaCmd.append(String.format("%-10s %s\n", (f.isDirectory() ? "<DIR>" : f.length() + "B"), f.getName()));
+                        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy  hh:mm a");
+                        for (File f : fList) {
+                            String fecha = sdf.format(new Date(f.lastModified()));
+                            String tipo = f.isDirectory() ? "<DIR>          " : String.format("%15s", f.length() + " B");
+                            areaCmd.append(fecha + "    " + tipo + " " + f.getName() + "\n");
+                        }
                     }
                     break;
 
@@ -1812,7 +1882,9 @@ public class MiniWindowsDesktop extends JFrame {
                 default:
                     areaCmd.append("'" + comando + "' no se reconoce como un comando interno. Escribe 'help' para ayuda.\n");
             }
-            lblPrompt.setText(" " + dirActual[0].getPath().replace(SistemadeArchivos.RUTA_RAIZ_SIMULADA, "Z:") + "> ");
+            
+            String promptActual = dirActual[0].getAbsolutePath().replace(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA).getAbsolutePath(), "Z:");
+            lblPrompt.setText(" " + promptActual + "> ");
         });
 
         return p;
@@ -2027,9 +2099,8 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // 5. REPRODUCTOR DE MÚSICA
+    // 5. REPRODUCTOR DE MÚSICA (HILOS SEPARADOS)
     // =========================================================================
-    
     private static class MotorAudioPlayer {
         private Player playerJLayer = null;
         private FileInputStream fis = null;
@@ -2219,7 +2290,6 @@ public class MiniWindowsDesktop extends JFrame {
 
     private final MotorAudioPlayer motorAudio = new MotorAudioPlayer();
 
-    // Metadatos con Álbum, Autor, Descripción y Nombre Relativo de Carátula
     private static class MetadataCancion implements Serializable {
         private static final long serialVersionUID = 3L;
         String autor;
@@ -2266,7 +2336,7 @@ public class MiniWindowsDesktop extends JFrame {
         File dirMusica = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Música");
         HashMap<String, MetadataCancion> mapaMetadatos = cargarMetadatosMusica(dirMusica);
 
-        // 1. SIDEBAR IZQUIERDO
+        // Sidebar Izquierdo
         JPanel sidebar = new JPanel(new BorderLayout());
         sidebar.setPreferredSize(new Dimension(200, 0));
         sidebar.setBackground(new Color(18, 18, 20));
@@ -2310,12 +2380,12 @@ public class MiniWindowsDesktop extends JFrame {
         sidebar.add(navList, BorderLayout.CENTER);
         p.add(sidebar, BorderLayout.WEST);
 
-        // 2. CONTENEDOR CENTRAL CON CARDLAYOUT
+        // Contenedor Central
         CardLayout cardsCenter = new CardLayout();
         JPanel centerCards = new JPanel(cardsCenter);
         centerCards.setOpaque(false);
 
-        // --- TARJETA 1: TABLA ESTILO SPOTIFY ---
+        // Tarjeta 1: Biblioteca de Canciones
         JPanel vistaBiblioteca = new JPanel(new BorderLayout(15, 15));
         vistaBiblioteca.setBackground(new Color(18, 18, 18));
         vistaBiblioteca.setBorder(new EmptyBorder(16, 20, 10, 20));
@@ -2423,7 +2493,7 @@ public class MiniWindowsDesktop extends JFrame {
         scrollSpotify.setBorder(BorderFactory.createLineBorder(new Color(38, 38, 42), 1, true));
         scrollSpotify.getViewport().setBackground(new Color(18, 18, 18));
 
-        // Panel de Detalles Derecho
+        // Panel de Detalles
         JPanel detailsPanel = new JPanel(new BorderLayout(10, 8));
         detailsPanel.setPreferredSize(new Dimension(280, 0));
         detailsPanel.setBackground(new Color(24, 24, 27));
@@ -2498,7 +2568,7 @@ public class MiniWindowsDesktop extends JFrame {
 
         vistaBiblioteca.add(splitCenter, BorderLayout.CENTER);
 
-        // --- TARJETA 2: FORMULARIO AGREGAR CANCIÓN ---
+        // Tarjeta 2: Formulario Agregar Canción
         JPanel vistaAgregar = new JPanel(new BorderLayout(15, 15));
         vistaAgregar.setBackground(new Color(24, 24, 27));
         vistaAgregar.setBorder(new EmptyBorder(18, 25, 18, 25));
@@ -2515,7 +2585,6 @@ public class MiniWindowsDesktop extends JFrame {
                 new EmptyBorder(20, 20, 20, 20)
         ));
 
-        // Columna Izquierda
         JPanel colCaratula = new JPanel(new BorderLayout(10, 10));
         colCaratula.setOpaque(false);
 
@@ -2556,7 +2625,6 @@ public class MiniWindowsDesktop extends JFrame {
         colCaratula.add(lblPreviewCaratula, BorderLayout.CENTER);
         colCaratula.add(btnBuscarCaratula, BorderLayout.SOUTH);
 
-        // Columna Derecha
         JPanel colDatos = new JPanel(new GridLayout(9, 1, 4, 3));
         colDatos.setOpaque(false);
 
@@ -2666,7 +2734,7 @@ public class MiniWindowsDesktop extends JFrame {
         centerCards.add(vistaAgregar, "AGREGAR");
         p.add(centerCards, BorderLayout.CENTER);
 
-        // 3. BARRA INFERIOR DE REPRODUCCIÓN
+        // Barra Inferior de Reproducción
         JPanel bottomBar = new JPanel(new BorderLayout(10, 4));
         bottomBar.setBackground(new Color(18, 18, 20));
         bottomBar.setBorder(new EmptyBorder(6, 18, 8, 18));
@@ -2742,7 +2810,6 @@ public class MiniWindowsDesktop extends JFrame {
         bottomBar.add(controlRow, BorderLayout.CENTER);
         p.add(bottomBar, BorderLayout.SOUTH);
 
-        // FUNCIÓN CENTRAL PARA FILTRAR EN TIEMPO REAL
         Runnable filtrarMusica = () -> {
             String rawQuery = searchBar.getText().trim().toLowerCase();
             String q = rawQuery.equals("buscar canción, artista...") ? "" : rawQuery;
@@ -2817,7 +2884,6 @@ public class MiniWindowsDesktop extends JFrame {
 
         filtrarMusica.run();
 
-        // Actualizar detalles con dos filas nativas
         tableSpotify.getSelectionModel().addListSelectionListener(e -> {
             int row = tableSpotify.getSelectedRow();
             if (row != -1 && row < modelTablaSpotify.getRowCount()) {
