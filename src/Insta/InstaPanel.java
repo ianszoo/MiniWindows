@@ -12,11 +12,15 @@ import java.text.SimpleDateFormat;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 
+/**
+ * @author David Suazo Palao & Ian Suazo Palao
+ * INSTA+ Mobile - Versión Integrada con Bandeja de Entrada Moderna y Sockets TCP
+ */
 public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListener {
     private Usuario usuarioActual;
     private String usuarioPerfilVisitado;
 
-    // Gestor de pantallas
+    // Gestor de pantallas principales
     private CardLayout rootCardLayout;
     private JPanel rootContainer;
 
@@ -42,14 +46,20 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
     public static final Color G_ORANGE        = new Color(245, 133, 41);
     public static final Color G_PINK          = new Color(221, 42, 123);
 
-    // Paneles y Controles Dinámicos
+    // Paneles Dinámicos
     private JPanel pnlFeedCards;
     private JPanel pnlStoriesBar;
     private JPanel pnlPerfilHeader;
     private JPanel pnlPerfilGrid;
-    private JPanel pnlChatStream;
-    private JPanel pnlContactosChat;
     private DefaultListModel<String> modelNotificaciones;
+
+    // Sub-Vistas de Inbox (Bandeja de Entrada y Sala de Chat)
+    private CardLayout inboxCardLayout;
+    private JPanel inboxContainer;
+    private JPanel pnlListaConversaciones;
+    private JPanel pnlChatStream;
+    private JLabel lblChatHeaderUser;
+    private JTextField txtBuscarChats;
     private String chatUsuarioSeleccionado = "noticias";
 
     private String pantallaActual = "TIMELINE";
@@ -81,21 +91,18 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
     private void iniciarConexionSocket() {
         socketCliente = new InstaClientSocket();
         socketCliente.setListener(this);
-        // Conectar al servidor central (puerto 8888) en hilo para no demorar la interfaz
         new Thread(() -> {
             socketCliente.conectar("localhost", InstaServer.PUERTO, usuarioActual.getUsername());
         }).start();
     }
 
     // =========================================================================
-    // RESPUESTA INSTANTÁNEA POR SOCKET (SIN REFRESH MANUAL NI SLEEP)
+    // RESPUESTA INSTANTÁNEA POR SOCKET
     // =========================================================================
     @Override
     public void onMensajeRecibido(String emisor, String receptor, String contenido, boolean esSticker) {
         SwingUtilities.invokeLater(() -> {
-            if (pantallaActual.equals("INBOX")) {
-                recargarChat();
-            }
+            recargarChat();
             recargarNotificacionesEnVivo();
         });
     }
@@ -111,7 +118,7 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
     }
 
     // =========================================================================
-    // VISTA PRINCIPAL DEL CELULAR (TOP BAR + SCREENS + BOTTOM NAV CON ICONOS)
+    // VISTA PRINCIPAL DEL CELULAR (TOP BAR + SCREENS + BOTTOM NAV)
     // =========================================================================
     private JPanel crearVistaTelefonoPrincipal() {
         JPanel phone = new JPanel(new BorderLayout());
@@ -283,7 +290,7 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
     }
 
     // =========================================================================
-    // 1. TIMELINE BASADO 100% EN LISTAS ENLAZADAS (SIN ARREGLOS ESTÁTICOS)
+    // 1. TIMELINE BASADO EN LISTAS ENLAZADAS
     // =========================================================================
     private JPanel crearVistaTimeline() {
         JPanel feedRoot = new JPanel(new BorderLayout());
@@ -336,7 +343,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
             ns = ns.getSiguiente();
         }
 
-        // Lista enlazada con inserción ordenada cronológicamente
         Lista<Publicacion> postsOrdenados = new Lista<>();
         Nodo<String> na = autores.getHead();
         while (na != null) {
@@ -382,7 +388,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
             return;
         }
 
-        // Inserción en cabeza si es más reciente
         if (nueva.getFecha().getTime() >= lista.getHead().getDato().getFecha().getTime()) {
             Lista<Publicacion> nuevaLista = new Lista<>();
             nuevaLista.agregar(nueva);
@@ -391,7 +396,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
                 nuevaLista.agregar(cur.getDato());
                 cur = cur.getSiguiente();
             }
-            // Copiar datos de vuelta a la lista
             while (!lista.estaVacia()) {
                 lista.eliminar(lista.obtener(0));
             }
@@ -403,7 +407,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
             return;
         }
 
-        // Inserción en orden descendente
         Nodo<Publicacion> actual = lista.getHead();
         int idx = 0;
         while (actual != null && actual.getDato().getFecha().getTime() > nueva.getFecha().getTime()) {
@@ -976,6 +979,7 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         rightTextPanel.add(lblEstado);
         topInfoRow.add(rightTextPanel, BorderLayout.CENTER);
 
+        // Botón DM en la esquina superior derecha
         if (!esPropio) {
             JButton btnTopDM = new JButton("DM") {
                 @Override
@@ -997,11 +1001,11 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
             btnTopDM.setBorderPainted(false);
             btnTopDM.setFocusPainted(false);
             btnTopDM.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            btnTopDM.setToolTipText("Enviar mensaje directo a @" + u.getUsername());
+            btnTopDM.setToolTipText("Enviar mensaje directo");
 
             btnTopDM.addActionListener(e -> {
-                chatUsuarioSeleccionado = u.getUsername();
                 cambiarPantalla("INBOX");
+                abrirChatConUsuario(u.getUsername());
             });
 
             JPanel pnlBtnDM = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 10));
@@ -1076,12 +1080,16 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
                     int resp = JOptionPane.showConfirmDialog(this, "¿Deseas dejar de seguir a @" + u.getUsername() + "?", "Confirmar", JOptionPane.YES_NO_OPTION);
                     if (resp == JOptionPane.YES_OPTION) {
                         InstaFileManager.toggleSeguir(usuarioActual.getUsername(), u.getUsername());
-                        socketCliente.notificarSeguimiento(usuarioActual.getUsername(), u.getUsername());
+                        if (socketCliente != null) {
+                            socketCliente.notificarSeguimiento(usuarioActual.getUsername(), u.getUsername());
+                        }
                         recargarPerfil();
                     }
                 } else {
                     InstaFileManager.toggleSeguir(usuarioActual.getUsername(), u.getUsername());
-                    socketCliente.notificarSeguimiento(usuarioActual.getUsername(), u.getUsername());
+                    if (socketCliente != null) {
+                        socketCliente.notificarSeguimiento(usuarioActual.getUsername(), u.getUsername());
+                    }
                     recargarPerfil();
                 }
             });
@@ -1165,31 +1173,124 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
     }
 
     // =========================================================================
-    // 6. INBOX CONECTADO POR SOCKETS EN TIEMPO REAL
+    // 6. INBOX (BANDEJA VERTICAL MODERNA + SALA DE CHAT CON RETORNO)
     // =========================================================================
     private JPanel crearVistaInbox() {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(BG_PHONE);
 
-        pnlContactosChat = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
-        pnlContactosChat.setBackground(BG_SURFACE);
-        pnlContactosChat.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_LINE));
+        inboxCardLayout = new CardLayout();
+        inboxContainer = new JPanel(inboxCardLayout);
+        inboxContainer.setOpaque(false);
 
-        JScrollPane scrollContactos = new JScrollPane(pnlContactosChat);
-        scrollContactos.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scrollContactos.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
-        scrollContactos.setBorder(null);
-        scrollContactos.setPreferredSize(new Dimension(getWidth(), 55));
-        root.add(scrollContactos, BorderLayout.NORTH);
+        inboxContainer.add(crearVistaBandejaConversaciones(), "LISTA_CHATS");
+        inboxContainer.add(crearVistaChatPrivado(), "SALA_CHAT");
+
+        root.add(inboxContainer, BorderLayout.CENTER);
+        return root;
+    }
+
+    private JPanel crearVistaBandejaConversaciones() {
+        JPanel pnlBandeja = new JPanel(new BorderLayout());
+        pnlBandeja.setBackground(BG_PHONE);
+
+        JPanel topBandeja = new JPanel(new BorderLayout(0, 8));
+        topBandeja.setBackground(BG_SURFACE);
+        topBandeja.setBorder(new EmptyBorder(10, 14, 10, 14));
+
+        JLabel lblTit = new JLabel("Mensajes Directos");
+        lblTit.setFont(new Font("Segoe UI", Font.BOLD, 17));
+        lblTit.setForeground(TEXT_WHITE);
+
+        txtBuscarChats = new JTextField();
+        estilizarCampoTexto(txtBuscarChats);
+        txtBuscarChats.setToolTipText("Buscar chats...");
+
+        txtBuscarChats.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) { recargarBandejaChats(); }
+        });
+
+        topBandeja.add(lblTit, BorderLayout.NORTH);
+        topBandeja.add(txtBuscarChats, BorderLayout.SOUTH);
+        pnlBandeja.add(topBandeja, BorderLayout.NORTH);
+
+        pnlListaConversaciones = new JPanel();
+        pnlListaConversaciones.setLayout(new BoxLayout(pnlListaConversaciones, BoxLayout.Y_AXIS));
+        pnlListaConversaciones.setBackground(BG_PHONE);
+
+        JScrollPane scrollBandeja = new JScrollPane(pnlListaConversaciones);
+        scrollBandeja.setBorder(null);
+        scrollBandeja.getVerticalScrollBar().setUnitIncrement(14);
+        pnlBandeja.add(scrollBandeja, BorderLayout.CENTER);
+
+        return pnlBandeja;
+    }
+
+    private JPanel crearVistaChatPrivado() {
+        JPanel pnlChat = new JPanel(new BorderLayout());
+        pnlChat.setBackground(BG_PHONE);
+
+        JPanel topChat = new JPanel(new BorderLayout(8, 0));
+        topChat.setBackground(BG_SURFACE);
+        topChat.setBorder(new EmptyBorder(8, 10, 8, 10));
+
+        JPanel leftChatInfo = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        leftChatInfo.setOpaque(false);
+
+        JButton btnVolverBandeja = new JButton("←") {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                if (getModel().isRollover()) {
+                    g2.setColor(BG_HOVER);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
+                }
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        btnVolverBandeja.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        btnVolverBandeja.setForeground(TEXT_WHITE);
+        btnVolverBandeja.setContentAreaFilled(false);
+        btnVolverBandeja.setBorderPainted(false);
+        btnVolverBandeja.setFocusPainted(false);
+        btnVolverBandeja.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnVolverBandeja.addActionListener(e -> {
+            inboxCardLayout.show(inboxContainer, "LISTA_CHATS");
+            recargarBandejaChats();
+        });
+
+        lblChatHeaderUser = new JLabel("@" + chatUsuarioSeleccionado);
+        lblChatHeaderUser.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        lblChatHeaderUser.setForeground(TEXT_WHITE);
+
+        leftChatInfo.add(btnVolverBandeja);
+        leftChatInfo.add(lblChatHeaderUser);
+        topChat.add(leftChatInfo, BorderLayout.WEST);
+
+        JButton btnEliminar = crearBotonSecundario("Eliminar");
+        btnEliminar.addActionListener(e -> {
+            int resp = JOptionPane.showConfirmDialog(this, "¿Eliminar todos los mensajes con @" + chatUsuarioSeleccionado + "?", "Eliminar Chat", JOptionPane.YES_NO_OPTION);
+            if (resp == JOptionPane.YES_OPTION) {
+                InstaFileManager.eliminarConversacionCompleta(usuarioActual.getUsername(), chatUsuarioSeleccionado);
+                inboxCardLayout.show(inboxContainer, "LISTA_CHATS");
+                recargarBandejaChats();
+            }
+        });
+        topChat.add(btnEliminar, BorderLayout.EAST);
+        pnlChat.add(topChat, BorderLayout.NORTH);
 
         pnlChatStream = new JPanel();
         pnlChatStream.setLayout(new BoxLayout(pnlChatStream, BoxLayout.Y_AXIS));
         pnlChatStream.setBackground(BG_PHONE);
         pnlChatStream.setBorder(new EmptyBorder(12, 14, 12, 14));
 
-        JScrollPane scrollChatStream = new JScrollPane(pnlChatStream);
-        scrollChatStream.setBorder(null);
-        root.add(scrollChatStream, BorderLayout.CENTER);
+        JScrollPane scrollChat = new JScrollPane(pnlChatStream);
+        scrollChat.setBorder(null);
+        scrollChat.getVerticalScrollBar().setUnitIncrement(14);
+        pnlChat.add(scrollChat, BorderLayout.CENTER);
 
         JPanel inputRow = new JPanel(new BorderLayout(6, 0));
         inputRow.setBackground(BG_SURFACE);
@@ -1198,25 +1299,29 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         JTextField txtMsg = new JTextField();
         estilizarCampoTexto(txtMsg);
 
-        JPanel btnActs = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        JPanel btnActs = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         btnActs.setOpaque(false);
 
         JButton btnStk = crearBotonSecundario("Sticker");
-        JButton btnSend = crearBotonGradiente("Enviar", 65, 34);
+        JButton btnSend = crearBotonGradiente("Enviar", 75, 34);
 
         btnActs.add(btnStk);
         btnActs.add(btnSend);
         inputRow.add(txtMsg, BorderLayout.CENTER);
         inputRow.add(btnActs, BorderLayout.EAST);
-        root.add(inputRow, BorderLayout.SOUTH);
+        pnlChat.add(inputRow, BorderLayout.SOUTH);
 
-        // Envío instantáneo por Socket
         ActionListener enviar = e -> {
             String txt = txtMsg.getText().trim();
             if (!txt.isEmpty()) {
                 if (txt.length() > 300) txt = txt.substring(0, 300);
-                socketCliente.enviarMensajeChat(usuarioActual.getUsername(), chatUsuarioSeleccionado, txt, false);
+                if (socketCliente != null) {
+                    socketCliente.enviarMensajeChat(usuarioActual.getUsername(), chatUsuarioSeleccionado, txt, false);
+                } else {
+                    InstaFileManager.enviarMensaje(usuarioActual.getUsername(), chatUsuarioSeleccionado, txt, MensajeInbox.Tipo.TEXTO);
+                }
                 txtMsg.setText("");
+                recargarMensajesChat();
             }
         };
         btnSend.addActionListener(enviar);
@@ -1224,94 +1329,154 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
 
         btnStk.addActionListener(e -> {
             mostrarSelectorStickers(stk -> {
-                socketCliente.enviarMensajeChat(usuarioActual.getUsername(), chatUsuarioSeleccionado, stk, true);
+                if (socketCliente != null) {
+                    socketCliente.enviarMensajeChat(usuarioActual.getUsername(), chatUsuarioSeleccionado, stk, true);
+                } else {
+                    InstaFileManager.enviarMensaje(usuarioActual.getUsername(), chatUsuarioSeleccionado, stk, MensajeInbox.Tipo.STICKER);
+                }
+                recargarMensajesChat();
             });
         });
 
-        recargarChat();
-        return root;
+        return pnlChat;
     }
 
-    private void mostrarSelectorStickers(java.util.function.Consumer<String> callback) {
-        JDialog dlg = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Stickers Pack", true);
-        dlg.setSize(320, 280);
-        dlg.setLocationRelativeTo(this);
-        dlg.setLayout(new BorderLayout());
-        dlg.getContentPane().setBackground(BG_SURFACE);
+    public synchronized void recargarChat() {
+        recargarBandejaChats();
+        recargarMensajesChat();
+    }
 
-        JPanel grid = new JPanel(new GridLayout(0, 3, 8, 8));
-        grid.setBackground(BG_SURFACE);
-        grid.setBorder(new EmptyBorder(12, 12, 12, 12));
+    private synchronized void recargarBandejaChats() {
+        if (pnlListaConversaciones == null) return;
+        pnlListaConversaciones.removeAll();
 
-        Lista<Stickers> stickers = InstaFileManager.cargarStickers(usuarioActual.getUsername());
-        Nodo<Stickers> n = stickers.getHead();
+        String q = (txtBuscarChats != null) ? txtBuscarChats.getText().trim().toLowerCase() : "";
+        Lista<String> contactosValidos = new Lista<>();
 
-        while (n != null) {
-            Stickers stkObj = n.getDato();
-            JButton btn = new JButton();
-            btn.setBackground(BG_INPUT);
-            btn.setBorder(BorderFactory.createLineBorder(BORDER_LINE, 1, true));
-            btn.setFocusPainted(false);
-
-            if (stkObj.getRutaArchivo() != null && new File(stkObj.getRutaArchivo()).exists()) {
-                ImageIcon ic = new ImageIcon(new ImageIcon(stkObj.getRutaArchivo()).getImage().getScaledInstance(55, 55, Image.SCALE_SMOOTH));
-                btn.setIcon(ic);
-            } else {
-                btn.setText(stkObj.getNombre());
-                btn.setFont(new Font("Segoe UI", Font.BOLD, 11));
-                btn.setForeground(TEXT_WHITE);
+        File fInbox = new File(InstaFileManager.RUTA_INSTA + "/" + usuarioActual.getUsername() + "/inbox.ins");
+        Lista<MensajeInbox> todosMensajes = InstaFileManager.cargarListaGenerica(fInbox);
+        Nodo<MensajeInbox> nm = todosMensajes.getHead();
+        while (nm != null) {
+            MensajeInbox m = nm.getDato();
+            String otro = m.getEmisor().equalsIgnoreCase(usuarioActual.getUsername()) ? m.getReceptor() : m.getEmisor();
+            if (!contactosValidos.contiene(otro.toLowerCase()) && !otro.equalsIgnoreCase(usuarioActual.getUsername())) {
+                contactosValidos.agregar(otro.toLowerCase());
             }
-
-            btn.addActionListener(e -> {
-                callback.accept(stkObj.getRutaArchivo() != null ? stkObj.getRutaArchivo() : stkObj.getNombre());
-                dlg.dispose();
-            });
-            grid.add(btn);
-            n = n.getSiguiente();
+            nm = nm.getSiguiente();
         }
 
-        dlg.add(new JScrollPane(grid), BorderLayout.CENTER);
-        dlg.setVisible(true);
-    }
+        Lista<String> seguidos = InstaFileManager.cargarSeguidos(usuarioActual.getUsername());
+        Nodo<String> ns = seguidos.getHead();
+        while (ns != null) {
+            String s = ns.getDato().toLowerCase();
+            if (!contactosValidos.contiene(s) && !s.equalsIgnoreCase(usuarioActual.getUsername())) {
+                contactosValidos.agregar(s);
+            }
+            ns = ns.getSiguiente();
+        }
 
-    private synchronized void recargarChat() {
-        if (pnlChatStream == null || pnlContactosChat == null) return;
-        pnlContactosChat.removeAll();
+        SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a");
+        int totalMostrados = 0;
 
-        Lista<Usuario> todos = InstaFileManager.cargarUsuariosInsta();
-        Nodo<Usuario> nu = todos.getHead();
-        while (nu != null) {
-            Usuario uObj = nu.getDato();
-            String u = uObj.getUsername();
-            if (!u.equalsIgnoreCase(usuarioActual.getUsername()) && uObj.isActivo()) {
-                boolean isSel = u.equalsIgnoreCase(chatUsuarioSeleccionado);
-                JButton btnContact = new JButton("@" + u) {
-                    @Override
-                    protected void paintComponent(Graphics g) {
-                        Graphics2D g2 = (Graphics2D) g.create();
-                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                        g2.setColor(isSel ? IG_BLUE : BG_INPUT);
-                        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 6, 6);
-                        g2.dispose();
-                        super.paintComponent(g);
+        Nodo<String> nc = contactosValidos.getHead();
+        while (nc != null) {
+            String targetUser = nc.getDato();
+            Usuario uObj = InstaFileManager.buscarUsuario(targetUser);
+
+            if (uObj != null && uObj.isActivo()) {
+                if (q.isEmpty() || targetUser.contains(q) || uObj.getNombreCompleto().toLowerCase().contains(q)) {
+                    totalMostrados++;
+
+                    // 1. Declarar rowConv una sola vez y sin paintComponent con getModel()
+                    JPanel rowConv = new JPanel(new BorderLayout(10, 0));
+                    rowConv.setBackground(BG_SURFACE);
+                    rowConv.setBorder(BorderFactory.createCompoundBorder(
+                            BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER_LINE),
+                            new EmptyBorder(10, 14, 10, 14)
+                    ));
+                    rowConv.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+                    // 2. Efecto Hover limpio mediante MouseListener
+                    rowConv.addMouseListener(new MouseAdapter() {
+                        @Override
+                        public void mouseEntered(MouseEvent e) {
+                            rowConv.setBackground(BG_HOVER);
+                        }
+                        @Override
+                        public void mouseExited(MouseEvent e) {
+                            rowConv.setBackground(BG_SURFACE);
+                        }
+                        @Override
+                        public void mouseClicked(MouseEvent e) {
+                            abrirChatConUsuario(uObj.getUsername());
+                        }
+                    });
+
+                    rowConv.add(crearAvatarCircular(uObj.getUsername(), 44, false, null), BorderLayout.WEST);
+
+                    Lista<MensajeInbox> chatHist = InstaFileManager.obtenerConversacion(usuarioActual.getUsername(), uObj.getUsername());
+                    String ultimoTxt = "Inicia una conversación...";
+                    String horaTxt = "";
+                    if (!chatHist.estaVacia()) {
+                        MensajeInbox lastM = chatHist.obtener(chatHist.getSize() - 1);
+                        ultimoTxt = lastM.getTipo() == MensajeInbox.Tipo.STICKER ? "[Sticker]" : lastM.getTexto();
+                        if (ultimoTxt.length() > 24) ultimoTxt = ultimoTxt.substring(0, 24) + "...";
+                        horaTxt = sdf.format(lastM.getFecha());
                     }
-                };
-                btnContact.setFont(new Font("Segoe UI", Font.BOLD, 11));
-                btnContact.setForeground(Color.WHITE);
-                btnContact.setContentAreaFilled(false);
-                btnContact.setBorderPainted(false);
-                btnContact.setFocusPainted(false);
-                btnContact.setCursor(new Cursor(Cursor.HAND_CURSOR));
-                btnContact.addActionListener(e -> {
-                    chatUsuarioSeleccionado = u;
-                    recargarChat();
-                });
-                pnlContactosChat.add(btnContact);
+
+                    JPanel centerText = new JPanel(new GridLayout(2, 1, 0, 2));
+                    centerText.setOpaque(false);
+
+                    JLabel lblName = new JLabel(uObj.getNombreCompleto());
+                    lblName.setFont(new Font("Segoe UI", Font.BOLD, 13));
+                    lblName.setForeground(TEXT_WHITE);
+
+                    JLabel lblSub = new JLabel("@" + uObj.getUsername() + " • " + ultimoTxt);
+                    lblSub.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+                    lblSub.setForeground(TEXT_MUTED);
+
+                    centerText.add(lblName);
+                    centerText.add(lblSub);
+                    rowConv.add(centerText, BorderLayout.CENTER);
+
+                    if (!horaTxt.isEmpty()) {
+                        JLabel lblHora = new JLabel(horaTxt);
+                        lblHora.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                        lblHora.setForeground(TEXT_MUTED);
+                        rowConv.add(lblHora, BorderLayout.EAST);
+                    }
+
+                    pnlListaConversaciones.add(rowConv);
+                }
             }
-            nu = nu.getSiguiente();
+            nc = nc.getSiguiente();
         }
 
+        if (totalMostrados == 0) {
+            JLabel lblVacio = new JLabel("<html><center style='color:#a0a0a5; font-size:12px; padding:30px;'>"
+                    + "No tienes conversaciones activas.<br>Envía un DM desde el perfil de un usuario.</center></html>", SwingConstants.CENTER);
+            pnlListaConversaciones.add(lblVacio);
+        }
+
+        pnlListaConversaciones.revalidate();
+        pnlListaConversaciones.repaint();
+    }
+
+    public void abrirChatConUsuario(String username) {
+        this.chatUsuarioSeleccionado = username;
+        if (lblChatHeaderUser != null) {
+            lblChatHeaderUser.setText("@" + chatUsuarioSeleccionado);
+        }
+        if (inboxCardLayout != null && inboxContainer != null) {
+            inboxCardLayout.show(inboxContainer, "SALA_CHAT");
+        }
+        recargarMensajesChat();
+    }
+
+    private synchronized void recargarMensajesChat() {
+        if (pnlChatStream == null) return;
         pnlChatStream.removeAll();
+
         Lista<MensajeInbox> conversacion = InstaFileManager.obtenerConversacion(usuarioActual.getUsername(), chatUsuarioSeleccionado);
         SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a");
 
@@ -1348,10 +1513,106 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
             n = n.getSiguiente();
         }
 
-        pnlContactosChat.revalidate();
-        pnlContactosChat.repaint();
         pnlChatStream.revalidate();
         pnlChatStream.repaint();
+    }
+
+    // =========================================================================
+    // MODAL DE STICKERS (PACK GLOBAL Y PERSONAL CON IMPORTACIÓN .PNG / .JPG)
+    // =========================================================================
+    private void mostrarSelectorStickers(java.util.function.Consumer<String> callback) {
+        JDialog dlg = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Stickers Pack", true);
+        dlg.setSize(360, 380);
+        dlg.setLocationRelativeTo(this);
+        dlg.setLayout(new BorderLayout(0, 8));
+        dlg.getContentPane().setBackground(BG_SURFACE);
+
+        JPanel topPanel = new JPanel(new BorderLayout(8, 0));
+        topPanel.setOpaque(false);
+        topPanel.setBorder(new EmptyBorder(10, 12, 4, 12));
+
+        JLabel lblTit = new JLabel("Elige un Sticker:");
+        lblTit.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lblTit.setForeground(TEXT_WHITE);
+        topPanel.add(lblTit, BorderLayout.WEST);
+
+        JButton btnImportar = crearBotonGradiente("+ Importar (.png/.jpg)", 160, 30);
+        topPanel.add(btnImportar, BorderLayout.EAST);
+        dlg.add(topPanel, BorderLayout.NORTH);
+
+        JPanel grid = new JPanel(new GridLayout(0, 3, 8, 8));
+        grid.setBackground(BG_SURFACE);
+        grid.setBorder(new EmptyBorder(8, 12, 12, 12));
+
+        Runnable cargarGrid = () -> {
+            grid.removeAll();
+            Lista<Stickers> stickers = InstaFileManager.cargarStickers(usuarioActual.getUsername());
+            Nodo<Stickers> n = stickers.getHead();
+
+            while (n != null) {
+                Stickers stkObj = n.getDato();
+                JButton btn = new JButton() {
+                    @Override
+                    protected void paintComponent(Graphics g) {
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        g2.setColor(getModel().isRollover() ? BG_HOVER : BG_INPUT);
+                        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                        g2.setColor(BORDER_LINE);
+                        g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+                        g2.dispose();
+                        super.paintComponent(g);
+                    }
+                };
+                btn.setContentAreaFilled(false);
+                btn.setBorderPainted(false);
+                btn.setFocusPainted(false);
+                btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                btn.setPreferredSize(new Dimension(85, 85));
+
+                if (stkObj.getRutaArchivo() != null && new File(stkObj.getRutaArchivo()).exists()) {
+                    ImageIcon ic = new ImageIcon(new ImageIcon(stkObj.getRutaArchivo()).getImage().getScaledInstance(55, 55, Image.SCALE_SMOOTH));
+                    btn.setIcon(ic);
+                } else {
+                    btn.setText(stkObj.getNombre());
+                    btn.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                    btn.setForeground(TEXT_WHITE);
+                }
+
+                btn.addActionListener(e -> {
+                    callback.accept(stkObj.getRutaArchivo() != null ? stkObj.getRutaArchivo() : stkObj.getNombre());
+                    dlg.dispose();
+                });
+                grid.add(btn);
+                n = n.getSiguiente();
+            }
+            grid.revalidate();
+            grid.repaint();
+        };
+
+        btnImportar.addActionListener(e -> {
+            JFileChooser fc = new JFileChooser();
+            fc.setDialogTitle("Seleccionar imagen de Sticker (.png o .jpg)");
+            if (fc.showOpenDialog(dlg) == JFileChooser.APPROVE_OPTION) {
+                File archivoSel = fc.getSelectedFile();
+                boolean exito = InstaFileManager.agregarStickerPersonal(usuarioActual.getUsername(), archivoSel);
+                if (exito) {
+                    JOptionPane.showMessageDialog(dlg, "¡Sticker '" + archivoSel.getName() + "' agregado exitosamente!");
+                    cargarGrid.run();
+                } else {
+                    JOptionPane.showMessageDialog(dlg, "Error: El archivo debe tener formato .png o .jpg válido.", "Formato Inválido", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        cargarGrid.run();
+
+        JScrollPane sc = new JScrollPane(grid);
+        sc.setBorder(null);
+        sc.getVerticalScrollBar().setUnitIncrement(14);
+        dlg.add(sc, BorderLayout.CENTER);
+
+        dlg.setVisible(true);
     }
 
     // =========================================================================
@@ -1403,8 +1664,13 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         btnGuardar.addActionListener(e -> {
             Usuario usr = InstaFileManager.buscarUsuario(usuarioActual.getUsername());
             if (usr != null) {
+                String nuevaPass = new String(txtPass.getPassword());
+                if (!esPasswordValido(nuevaPass)) {
+                    JOptionPane.showMessageDialog(this, "La contraseña debe tener al menos 8 caracteres y contener un número o símbolo.", "Contraseña Insegura", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
                 usr.setNombreCompleto(txtNom.getText().trim());
-                usr.setPass(new String(txtPass.getPassword()));
+                usr.setPass(nuevaPass);
                 usr.setEdad((Integer) spinEdad.getValue());
                 usr.setGenero(((String) cbGen.getSelectedItem()).charAt(0));
                 InstaFileManager.actualizarUsuario(usr);
@@ -1540,7 +1806,7 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         authCardLayout = new CardLayout();
         authContainer = new JPanel(authCardLayout);
         authContainer.setOpaque(false);
-        authContainer.setPreferredSize(new Dimension(380, 540));
+        authContainer.setPreferredSize(new Dimension(380, 560));
 
         authContainer.add(crearCardLandingOpciones(), "LANDING");
         authContainer.add(crearCardLoginInsta(), "LOGIN");

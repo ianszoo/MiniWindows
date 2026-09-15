@@ -5,6 +5,8 @@ import Windows.Nodo;
 import Windows.SistemadeArchivos;
 import Windows.Usuario;
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 
 public class InstaFileManager {
     public static final String RUTA_INSTA = SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/INSTA_RAIZ";
@@ -247,42 +249,80 @@ public class InstaFileManager {
         guardarListaGenerica(f, filtrados);
     }
 
+    public static synchronized boolean agregarStickerPersonal(String username, File archivoOrigen) {
+        if (archivoOrigen == null || !archivoOrigen.exists()) return false;
+
+        String nombre = archivoOrigen.getName().toLowerCase();
+        // Validación obligatoria de formato .png o .jpg
+        if (!nombre.endsWith(".png") && !nombre.endsWith(".jpg") && !nombre.endsWith(".jpeg")) {
+            return false;
+        }
+
+        // 1. Guardar físicamente en /stickers_personales
+        File dirPersonal = new File(RUTA_INSTA + "/" + username + "/stickers_personales");
+        if (!dirPersonal.exists()) dirPersonal.mkdirs();
+
+        File destino = new File(dirPersonal, archivoOrigen.getName());
+        try {
+            Files.copy(archivoOrigen.toPath(), destino.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+
+        // 2. Registrar en stickers.ins del usuario
+        File fStk = new File(RUTA_INSTA + "/" + username + "/stickers.ins");
+        Lista<Stickers> lista = cargarListaGenerica(fStk);
+
+        Stickers nuevoStk = new Stickers(archivoOrigen.getName(), destino.getAbsolutePath(), false);
+        if (!lista.contiene(nuevoStk)) {
+            lista.agregar(nuevoStk);
+            guardarListaGenerica(fStk, lista);
+        }
+        return true;
+    }
+
+    // --- CARGAR STICKERS DISPONIBLES (5 POR DEFECTO + GLOBALES + PERSONALES) ---
     public static synchronized Lista<Stickers> cargarStickers(String username) {
         File fStk = new File(RUTA_INSTA + "/" + username + "/stickers.ins");
         Lista<Stickers> stickers = cargarListaGenerica(fStk);
 
+        // 5 stickers iniciales por defecto según rúbrica 4.12
         if (stickers.estaVacia()) {
             stickers.agregar(new Stickers("Feliz", null, true));
             stickers.agregar(new Stickers("Triste", null, true));
-            stickers.agregar(new Stickers("Corazon", null, true));
+            stickers.agregar(new Stickers("Corazón", null, true));
             stickers.agregar(new Stickers("Risa", null, true));
             stickers.agregar(new Stickers("Aplauso", null, true));
-            guardarListaGenerica(fStk, stickers);
         }
 
-        File persDir = new File(RUTA_INSTA + "/" + username + "/stickers_personales");
-        if (persDir.exists()) {
-            File[] files = persDir.listFiles((d, name) -> {
-                String n = name.toLowerCase();
-                return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg");
-            });
-            if (files != null) {
-                for (File f : files) {
-                    boolean existe = false;
-                    Nodo<Stickers> cur = stickers.getHead();
-                    while (cur != null) {
-                        if (cur.getDato().getRutaArchivo() != null && cur.getDato().getRutaArchivo().equalsIgnoreCase(f.getAbsolutePath())) {
-                            existe = true;
-                            break;
+        // Escanear carpetas físicas de imágenes
+        File[] carpetas = {
+            new File(RUTA_STICKERS_GLOBALES),
+            new File(RUTA_INSTA + "/" + username + "/stickers_personales"),
+            new File("src/Insta/stickers"),
+            new File("stickers")
+        };
+
+        for (File dir : carpetas) {
+            if (dir.exists() && dir.isDirectory()) {
+                File[] archivos = dir.listFiles((d, name) -> {
+                    String n = name.toLowerCase();
+                    return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg");
+                });
+                if (archivos != null) {
+                    for (File f : archivos) {
+                        boolean esGlobal = dir.getAbsolutePath().contains("stickers_globales");
+                        Stickers stkObj = new Stickers(f.getName(), f.getAbsolutePath(), esGlobal);
+                        if (!stickers.contiene(stkObj)) {
+                            stickers.agregar(stkObj);
                         }
-                        cur = cur.getSiguiente();
-                    }
-                    if (!existe) {
-                        stickers.agregar(new Stickers(f.getName(), f.getAbsolutePath(), false));
                     }
                 }
             }
         }
+
+        guardarListaGenerica(fStk, stickers);
         return stickers;
     }
 }

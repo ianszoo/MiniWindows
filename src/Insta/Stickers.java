@@ -8,10 +8,10 @@ package Insta;
 import java.io.Serializable;
 
 /**
- *
- * @author Ian Suazo Palao
+ * @author Ian Suazo Palao & David Suazo Palao
+ * Modelo de Sticker Serializable (Sección 4.12)
  */
-public class Stickers implements Serializable{
+public class Stickers implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private String nombre;
@@ -25,6 +25,30 @@ public class Stickers implements Serializable{
     }
 
     public String getNombre() { return nombre; }
+    public void setNombre(String nombre) { this.nombre = nombre; }
+
     public String getRutaArchivo() { return rutaArchivo; }
+    public void setRutaArchivo(String rutaArchivo) { this.rutaArchivo = rutaArchivo; }
+
     public boolean isEsGlobal() { return esGlobal; }
+    public void setEsGlobal(boolean esGlobal) { this.esGlobal = esGlobal; }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof Stickers) {
+            Stickers otro = (Stickers) obj;
+            if (this.rutaArchivo != null && otro.rutaArchivo != null) {
+                return this.rutaArchivo.equalsIgnoreCase(otro.rutaArchivo);
+            }
+            if (this.nombre != null && otro.nombre != null) {
+                return this.nombre.equalsIgnoreCase(otro.nombre);
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public String toString() {
+        return this.nombre;
+    }
 }
