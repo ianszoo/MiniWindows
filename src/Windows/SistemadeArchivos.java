@@ -20,14 +20,29 @@ public class SistemadeArchivos {
             raiz.mkdirs();
         }
 
-        // Crear automáticamente el usuario Admin de prueba si no existe
         File fileUsuarios = new File(ARCHIVO_USUARIOS);
         if (!fileUsuarios.exists()) {
             Lista<Usuario> listaInicial = new Lista<>();
-            Usuario adminTest = new Usuario("admin", "Admin2026!", true);
+            Usuario adminTest = new Usuario("admin", "Admin2026!", true, "Administrador del Sistema", 'M', 30, null);
+            adminTest.setActivo(true);
             listaInicial.agregar(adminTest);
             guardarUsuarios(listaInicial);
             crearEstructuraUsuario("admin");
+        } else {
+            // Asegurar que el admin existente esté siempre activo
+            try {
+                Lista<Usuario> list = cargarUsuarios();
+                Nodo<Usuario> cur = list.getHead();
+                boolean mod = false;
+                while (cur != null) {
+                    if (cur.getDato().getUsername().equalsIgnoreCase("admin") && !cur.getDato().isActivo()) {
+                        cur.getDato().setActivo(true);
+                        mod = true;
+                    }
+                    cur = cur.getSiguiente();
+                }
+                if (mod) guardarUsuarios(list);
+            } catch (Exception ignored) {}
         }
     }
     
@@ -45,7 +60,16 @@ public class SistemadeArchivos {
         if (!file.exists()) return new Lista<>();
 
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
-            return (Lista<Usuario>) ois.readObject();
+            Lista<Usuario> list = (Lista<Usuario>) ois.readObject();
+            // Garantizar que admin siempre esté activo en memoria
+            Nodo<Usuario> n = list.getHead();
+            while (n != null) {
+                if (n.getDato().getUsername().equalsIgnoreCase("admin")) {
+                    n.getDato().setActivo(true);
+                }
+                n = n.getSiguiente();
+            }
+            return list;
         } catch (Exception e) {
             throw new CorruptoException("Error al leer el archivo binario de usuarios: usuarios.sop");
         }
@@ -105,6 +129,7 @@ public class SistemadeArchivos {
         }
 
         Usuario nuevo = new Usuario(username, password, esAdmin);
+        nuevo.setActivo(true);
         usuarios.agregar(nuevo);
         guardarUsuarios(usuarios);
         crearEstructuraUsuario(username);

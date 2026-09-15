@@ -56,12 +56,13 @@ public class MiniWindowsDesktop extends JFrame {
     private final Color TASKBAR_COLOR   = new Color(15, 23, 42, 245);
     private final Color START_MENU_BG   = new Color(30, 41, 59, 250);
     private final Color ACCENT_BLUE     = new Color(0, 120, 215);
-    private final Color HOVER_COLOR     = new Color(255, 255, 255, 30);
+    private final Color HOVER_COLOR     = new Color(255, 255, 255, 28);
     private final Color TEXT_WHITE      = new Color(241, 245, 249);
     private final Color TEXT_MUTED      = new Color(148, 163, 184);
 
     public MiniWindowsDesktop(Usuario usuario) {
         this.usuarioActual = usuario != null ? usuario : new Usuario("admin", "Admin2026!", true);
+        this.usuarioActual.setActivo(true);
         actualizarTituloVentana();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
@@ -103,10 +104,8 @@ public class MiniWindowsDesktop extends JFrame {
         setTitle("Mini-Windows OS - Sesión: " + usuarioActual.getUsername() + (usuarioActual.isEsAdmin() ? " (Administrador)" : " (Usuario Estándar)"));
     }
 
-    // Cambia de cuenta en caliente sin salir de Mini-Windows
     public void cambiarUsuarioEnCaliente(Usuario nuevoUsuario) {
         motorAudio.detener();
-        // Cerrar todas las ventanas abiertas de la cuenta anterior
         for (JInternalFrame f : desktopPane.getAllFrames()) {
             f.dispose();
         }
@@ -114,6 +113,7 @@ public class MiniWindowsDesktop extends JFrame {
         archivoPortapapeles = null;
 
         this.usuarioActual = nuevoUsuario;
+        this.usuarioActual.setActivo(true);
         actualizarTituloVentana();
 
         if (startMenuVisible) {
@@ -125,7 +125,6 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     private void refrescarEscritorioCompleto() {
-        // Limpiar iconos previos
         desktopPane.removeAll();
         crearIconosEscritorio();
         crearMenuInicio();
@@ -165,7 +164,6 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
-    // GESTIÓN DE VENTANAS
     private void gestionarVentana(String appId, String titulo, JComponent content, int ancho, int alto, boolean darkTheme) {
         JInternalFrame frame = ventanasAbiertas.get(appId);
 
@@ -230,7 +228,6 @@ public class MiniWindowsDesktop extends JFrame {
         } catch (Exception ignored) {}
     }
 
-    // ICONOS DEL ESCRITORIO
     private void crearIconosEscritorio() {
         int x = 20;
         int y = 20;
@@ -298,7 +295,7 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // MENÚ INICIO
+    // MENÚ INICIO (DISEÑO PROFESIONAL WINDOWS 10/11)
     private void crearMenuInicio() {
         startMenu = new JPanel() {
             @Override
@@ -356,8 +353,22 @@ public class MiniWindowsDesktop extends JFrame {
         desktopPane.add(startMenu, JLayeredPane.POPUP_LAYER);
     }
 
+    // BOTÓN DE MENÚ CON SUBRAYADOR SUAVE Y ELEGANTE (SIN FONDO BLANCO)
     private JButton crearBotonMenu(String nombreIcono, String texto, Runnable accion, boolean isHeader) {
-        JButton btn = new JButton(texto);
+        JButton btn = new JButton(texto) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                if (!isHeader && getModel().isRollover()) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(HOVER_COLOR); // Resaltador sutil translúcido idéntico al sistema
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                    g2.dispose();
+                }
+                super.paintComponent(g);
+            }
+        };
+
         if (nombreIcono != null) {
             ImageIcon icon = cargarIcono(nombreIcono, 20, 20);
             if (icon != null) btn.setIcon(icon);
@@ -371,14 +382,9 @@ public class MiniWindowsDesktop extends JFrame {
         btn.setBorderPainted(false);
         btn.setFocusPainted(false);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setBorder(new EmptyBorder(6, 10, 6, 10));
 
         if (!isHeader) {
-            btn.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseEntered(MouseEvent e) { btn.setContentAreaFilled(true); btn.setBackground(HOVER_COLOR); }
-                @Override
-                public void mouseExited(MouseEvent e) { btn.setContentAreaFilled(false); }
-            });
             btn.addActionListener(e -> {
                 toggleStartMenu();
                 if (accion != null) accion.run();
@@ -398,7 +404,6 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
-    // BARRA DE TAREAS
     private void crearBarraDeTareas() {
         JPanel taskBar = new JPanel(new BorderLayout(10, 0));
         taskBar.setBackground(TASKBAR_COLOR);
@@ -494,7 +499,6 @@ public class MiniWindowsDesktop extends JFrame {
         return btn;
     }
 
-    // Cerrar sesión siempre devuelve a la pantalla de Login de Administrador
     private void cerrarSesion() {
         motorAudio.detener();
         dispose();
@@ -526,7 +530,7 @@ public class MiniWindowsDesktop extends JFrame {
             try {
                 Usuario u = SistemadeArchivos.autenticar(username, pss);
                 if (u != null) {
-                    if (!u.isActivo()) {
+                    if (!u.isActivo() && !u.getUsername().equalsIgnoreCase("admin")) {
                         JOptionPane.showMessageDialog(this, "La cuenta @" + username + " se encuentra desactivada.", "Cuenta Inactiva", JOptionPane.WARNING_MESSAGE);
                         return;
                     }
@@ -540,7 +544,6 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
-    // ENRUTADORES DE APLICACIONES
     private void abrirExplorador(File carpetaInicial) { 
         gestionarVentana("EXPLORADOR", "Explorador de archivos (" + usuarioActual.getUsername() + ")", crearExploradorReal(carpetaInicial), 940, 610, false); 
     }
@@ -614,9 +617,7 @@ public class MiniWindowsDesktop extends JFrame {
         return null;
     }
 
-    // =========================================================================
-    // PANEL "CUENTAS DE USUARIO" (CON BOTÓN "INGRESAR A CUENTA")
-    // =========================================================================
+    // PANEL "CUENTAS DE USUARIO"
     private JPanel crearPanelCuentasUsuario() {
         JPanel p = new JPanel(new BorderLayout(0, 8));
         p.setBackground(Color.WHITE);
@@ -682,6 +683,8 @@ public class MiniWindowsDesktop extends JFrame {
                 int count = 0;
                 while (cur != null) {
                     Usuario u = cur.getDato();
+                    // El admin siempre se muestra Activo
+                    boolean activoVal = u.getUsername().equalsIgnoreCase("admin") ? true : u.isActivo();
                     modelUsuarios.addRow(new Object[]{
                         u.getUsername(),
                         u.getNombreCompleto(),
@@ -689,7 +692,7 @@ public class MiniWindowsDesktop extends JFrame {
                         u.getEdad(),
                         String.valueOf(u.getGenero()),
                         sdf.format(u.getFechaCreacion()),
-                        u.isActivo() ? "Activa" : "Inactiva"
+                        activoVal ? "Activa" : "Inactiva"
                     });
                     count++;
                     cur = cur.getSiguiente();
@@ -724,7 +727,6 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
-        // NUEVO USUARIO CON CONFIRMAR CONTRASEÑA
         btnNuevo.addActionListener(e -> {
             JDialog dlg = new JDialog(this, "Nuevo usuario", true);
             dlg.setSize(400, 410);
@@ -783,6 +785,7 @@ public class MiniWindowsDesktop extends JFrame {
                             node.getDato().setNombreCompleto(nom);
                             node.getDato().setEdad((Integer) spinEdad.getValue());
                             node.getDato().setGenero(cbGen.getSelectedItem().toString().charAt(0));
+                            node.getDato().setActivo(true);
                             break;
                         }
                         node = node.getSiguiente();
@@ -831,7 +834,7 @@ public class MiniWindowsDesktop extends JFrame {
             if (row != -1) {
                 String usr = (String) modelUsuarios.getValueAt(row, 0);
                 if (usr.equalsIgnoreCase("admin")) {
-                    JOptionPane.showMessageDialog(this, "No se puede desactivar la cuenta principal de Administrador.");
+                    JOptionPane.showMessageDialog(this, "La cuenta principal de Administrador siempre permanece activa.");
                     return;
                 }
                 try {
@@ -850,7 +853,6 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
-        // RESTABLECER CONTRASEÑA CON CONFIRMAR CONTRASEÑA
         btnPass.addActionListener(e -> {
             int row = tableUsuarios.getSelectedRow();
             if (row != -1) {
@@ -928,9 +930,7 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // =========================================================================
-    // 1. EXPLORADOR DE ARCHIVOS CON ORGANIZACIÓN POR HILOS (THREADS) Y JTREE
-    // =========================================================================
+    // EXPLORADOR DE ARCHIVOS
     private JPanel crearExploradorReal(File carpetaInicial) {
         JPanel p = new JPanel(new BorderLayout(0, 0));
         p.setBackground(Color.WHITE);
@@ -945,7 +945,6 @@ public class MiniWindowsDesktop extends JFrame {
         Stack<File> historialAtras = new Stack<>();
         Stack<File> historialAdelante = new Stack<>();
 
-        // Barra de Navegación y Herramientas Superior
         JPanel topContainer = new JPanel(new BorderLayout());
         topContainer.setBackground(new Color(248, 249, 251));
         topContainer.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(225, 230, 235)));
@@ -1000,7 +999,6 @@ public class MiniWindowsDesktop extends JFrame {
         topContainer.add(actionsBar, BorderLayout.SOUTH);
         p.add(topContainer, BorderLayout.NORTH);
 
-        // JTree Completo
         DefaultMutableTreeNode raizNodo = new DefaultMutableTreeNode(raizPermitida.getName());
         DefaultTreeModel modeloArbol = new DefaultTreeModel(raizNodo);
         JTree tree = new JTree(modeloArbol);
@@ -1496,9 +1494,7 @@ public class MiniWindowsDesktop extends JFrame {
         return elemento.delete();
     }
 
-    // =========================================================================
-    // 2. EDITOR DE TEXTO CON FORMATO BINARIO
-    // =========================================================================
+    // EDITOR DE TEXTO
     private JPanel crearEditorReal(File archivoParaAbrir) {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(new Color(32, 32, 32));
@@ -1726,8 +1722,9 @@ public class MiniWindowsDesktop extends JFrame {
                         int i = 1;
                         while (cur != null) {
                             Usuario u = cur.getDato();
+                            boolean act = u.getUsername().equalsIgnoreCase("admin") ? true : u.isActivo();
                             sb.append(String.format("[%d] Usuario: %-15s | Nombre: %-20s | Rol: %-12s | Estado: %s\n",
-                                    i++, u.getUsername(), u.getNombreCompleto(), (u.isEsAdmin() ? "Admin" : "Estándar"), (u.isActivo() ? "Activa" : "Inactiva")));
+                                    i++, u.getUsername(), u.getNombreCompleto(), (u.isEsAdmin() ? "Admin" : "Estándar"), (act ? "Activa" : "Inactiva")));
                             cur = cur.getSiguiente();
                         }
                         textPane.setText(sb.toString());
@@ -1851,9 +1848,7 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
-    // =========================================================================
-    // 3. CONSOLA CMD CON GESTIÓN EXACTA DE PERMISOS ADMIN VS ESTÁNDAR
-    // =========================================================================
+    // CONSOLA CMD
     private JPanel crearCmdReal() {
         JPanel p = new JPanel(new BorderLayout());
         JTextArea areaCmd = new JTextArea();
@@ -2025,9 +2020,7 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // =========================================================================
-    // 4. VISOR DE FOTOS
-    // =========================================================================
+    // VISOR DE FOTOS
     private JPanel crearVisorReal(File fotoInicial) {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(new Color(24, 24, 27));
@@ -2233,9 +2226,7 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // =========================================================================
-    // 5. REPRODUCTOR DE MÚSICA (HILOS SEPARADOS)
-    // =========================================================================
+    // REPRODUCTOR DE MÚSICA
     private static class MotorAudioPlayer {
         private Player playerJLayer = null;
         private FileInputStream fis = null;
@@ -2471,7 +2462,6 @@ public class MiniWindowsDesktop extends JFrame {
         File dirMusica = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/" + usuarioActual.getUsername() + "/Música");
         HashMap<String, MetadataCancion> mapaMetadatos = cargarMetadatosMusica(dirMusica);
 
-        // Sidebar Izquierdo
         JPanel sidebar = new JPanel(new BorderLayout());
         sidebar.setPreferredSize(new Dimension(200, 0));
         sidebar.setBackground(new Color(18, 18, 20));
@@ -2515,12 +2505,10 @@ public class MiniWindowsDesktop extends JFrame {
         sidebar.add(navList, BorderLayout.CENTER);
         p.add(sidebar, BorderLayout.WEST);
 
-        // Contenedor Central
         CardLayout cardsCenter = new CardLayout();
         JPanel centerCards = new JPanel(cardsCenter);
         centerCards.setOpaque(false);
 
-        // Tarjeta 1: Biblioteca de Canciones
         JPanel vistaBiblioteca = new JPanel(new BorderLayout(15, 15));
         vistaBiblioteca.setBackground(new Color(18, 18, 18));
         vistaBiblioteca.setBorder(new EmptyBorder(16, 20, 10, 20));
@@ -2628,7 +2616,6 @@ public class MiniWindowsDesktop extends JFrame {
         scrollSpotify.setBorder(BorderFactory.createLineBorder(new Color(38, 38, 42), 1, true));
         scrollSpotify.getViewport().setBackground(new Color(18, 18, 18));
 
-        // Panel de Detalles
         JPanel detailsPanel = new JPanel(new BorderLayout(10, 8));
         detailsPanel.setPreferredSize(new Dimension(280, 0));
         detailsPanel.setBackground(new Color(24, 24, 27));
@@ -2703,7 +2690,6 @@ public class MiniWindowsDesktop extends JFrame {
 
         vistaBiblioteca.add(splitCenter, BorderLayout.CENTER);
 
-        // Tarjeta 2: Formulario Agregar Canción
         JPanel vistaAgregar = new JPanel(new BorderLayout(15, 15));
         vistaAgregar.setBackground(new Color(24, 24, 27));
         vistaAgregar.setBorder(new EmptyBorder(18, 25, 18, 25));
@@ -2869,7 +2855,6 @@ public class MiniWindowsDesktop extends JFrame {
         centerCards.add(vistaAgregar, "AGREGAR");
         p.add(centerCards, BorderLayout.CENTER);
 
-        // Barra Inferior de Reproducción
         JPanel bottomBar = new JPanel(new BorderLayout(10, 4));
         bottomBar.setBackground(new Color(18, 18, 20));
         bottomBar.setBorder(new EmptyBorder(6, 18, 8, 18));

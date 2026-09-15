@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package Windows;
 
 import java.io.Serializable;
@@ -19,13 +14,13 @@ public class Usuario implements Serializable {
     private Date fechaCreacion;
 
     private String nombreCompleto;
-    private char genero; // 'M' o 'F'
+    private char genero;
     private int edad;
-    private boolean activo;
+    private boolean activo = true; 
     private String fotoPerfil;
 
     public Usuario(String username, String pass, boolean esAdmin) {
-        this(username, pass, esAdmin, username, 'M', 20, null);
+        this(username, pass, esAdmin, username, 'M', 25, null);
     }
 
     public Usuario(String username, String pass, boolean esAdmin, String nombreCompleto, char genero, int edad, String fotoPerfil) {
@@ -35,36 +30,79 @@ public class Usuario implements Serializable {
         this.nombreCompleto = nombreCompleto != null ? nombreCompleto : username;
         this.genero = genero;
         this.edad = edad > 0 ? edad : 18;
-        this.activo = true;
+        this.activo = true; 
         this.fotoPerfil = fotoPerfil;
         this.fechaCreacion = new Date();
     }
 
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    public String getUsername() {
+        return username; 
+    }
+    
+    public void setUsername(String username) {
+        this.username = username; 
+    }
 
-    public String getPass() { return pass; }
-    public void setPass(String pass) { this.pass = pass; }
+    public String getPass() {
+        return pass; 
+    }
+    
+    public void setPass(String pass) {
+        this.pass = pass; 
+    }
 
-    public boolean isEsAdmin() { return esAdmin; }
-    public void setEsAdmin(boolean esAdmin) { this.esAdmin = esAdmin; }
+    public boolean isEsAdmin() {
+        return esAdmin;
+    }
+    
+    public void setEsAdmin(boolean esAdmin) {
+        this.esAdmin = esAdmin;
+    }
 
-    public Date getFechaCreacion() { return fechaCreacion; }
+    public Date getFechaCreacion() { 
+        return fechaCreacion; 
+    }
+    
 
-    public String getNombreCompleto() { return nombreCompleto; }
-    public void setNombreCompleto(String nombreCompleto) { this.nombreCompleto = nombreCompleto; }
+    public String getNombreCompleto() {
+        return nombreCompleto;
+    }
+    
+    public void setNombreCompleto(String nombreCompleto) {
+        this.nombreCompleto = nombreCompleto; 
+    }
 
-    public char getGenero() { return genero; }
-    public void setGenero(char genero) { this.genero = genero; }
+    public char getGenero() {
+        return genero;
+    }
+    
+    public void setGenero(char genero) {
+        this.genero = genero; 
+    }
 
-    public int getEdad() { return edad; }
-    public void setEdad(int edad) { this.edad = edad; }
+    public int getEdad() { 
+        return edad; 
+    }
+    
+    public void setEdad(int edad) {
+        this.edad = edad; 
+    }
 
-    public boolean isActivo() { return activo; }
-    public void setActivo(boolean activo) { this.activo = activo; }
+    public boolean isActivo() { 
+        return activo; 
+    }
+    
+    public void setActivo(boolean activo) { 
+        this.activo = activo; 
+    }
 
-    public String getFotoPerfil() { return fotoPerfil; }
-    public void setFotoPerfil(String fotoPerfil) { this.fotoPerfil = fotoPerfil; }
+    public String getFotoPerfil() {
+        return fotoPerfil; 
+    }
+    
+    public void setFotoPerfil(String fotoPerfil) {
+        this.fotoPerfil = fotoPerfil; 
+    }
 
     @Override
     public boolean equals(Object obj) {
