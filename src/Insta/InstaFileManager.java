@@ -25,6 +25,12 @@ public class InstaFileManager {
 
         asegurarStickersPorDefecto();
 
+        // FIX: Las imágenes de demostración deben asegurarse SIEMPRE en cualquier máquina,
+        // incluso si users.ins fue creado y compartido desde otra computadora.
+        asegurarImagenDemo("noticias", "noticia_demo.jpg", new Color(30, 58, 138), "NOTICIAS HOY");
+        asegurarImagenDemo("deportes", "deporte_demo.jpg", new Color(4, 120, 87), "CAMPEONATO 2026");
+        asegurarImagenDemo("entretenimiento", "moda_demo.jpg", new Color(190, 24, 93), "FASHION & TECH");
+
         File userIns = new File(ARCHIVO_USERS_INS);
         if (!userIns.exists()) {
             Lista<Usuario> iniciales = new Lista<>();
@@ -43,7 +49,6 @@ public class InstaFileManager {
                 n = n.getSiguiente();
             }
 
-            // Crear imágenes de muestra físicas si no existen
             String imgNoticia = asegurarImagenDemo("noticias", "noticia_demo.jpg", new Color(30, 58, 138), "NOTICIAS HOY");
             String imgDeporte = asegurarImagenDemo("deportes", "deporte_demo.jpg", new Color(4, 120, 87), "CAMPEONATO 2026");
             String imgModa = asegurarImagenDemo("entretenimiento", "moda_demo.jpg", new Color(190, 24, 93), "FASHION & TECH");
@@ -54,12 +59,12 @@ public class InstaFileManager {
         }
     }
 
-    private static String asegurarImagenDemo(String username, String nombreArchivo, Color colorFondo, String texto) {
+    public static String asegurarImagenDemo(String username, String nombreArchivo, Color colorFondo, String texto) {
         File dirImg = new File(RUTA_INSTA + "/" + username + "/imagenes");
         if (!dirImg.exists()) dirImg.mkdirs();
 
         File destino = new File(dirImg, nombreArchivo);
-        if (!destino.exists()) {
+        if (!destino.exists() || destino.length() == 0) {
             try {
                 BufferedImage img = new BufferedImage(600, 400, BufferedImage.TYPE_INT_RGB);
                 Graphics2D g2 = img.createGraphics();
@@ -81,57 +86,94 @@ public class InstaFileManager {
         return destino.getAbsolutePath();
     }
 
-    /**
-     * Resuelve la imagen en cualquier máquina. Si la ruta guardada pertenecía a otra PC,
-     * busca en la carpeta del autor o restaura el archivo automáticamente usando los bytes guardados.
-     */
+    public static String extraerNombreArchivo(String ruta) {
+        if (ruta == null || ruta.trim().isEmpty()) return "";
+        String r = ruta.replace('\\', '/');
+        int idx = r.lastIndexOf('/');
+        return (idx >= 0 && idx < r.length() - 1) ? r.substring(idx + 1) : r;
+    }
+
     public static File resolverImagenPost(String autor, String rutaGuardada, byte[] imagenBytes) {
-        if (rutaGuardada != null && !rutaGuardada.trim().isEmpty()) {
-            // 1. Probar ruta directa
-            File fDirecto = new File(rutaGuardada);
-            if (fDirecto.exists()) return fDirecto;
-
-            // 2. Probar en la carpeta de imágenes del autor local
-            File fEnUsuario = new File(RUTA_INSTA + "/" + autor + "/imagenes/" + fDirecto.getName());
-            if (fEnUsuario.exists()) return fEnUsuario;
-
-            // 3. Probar en las carpetas de imágenes del proyecto
-            String[] carpetasProyecto = {"Imagenes/", "src/Imagenes/", "imagenes/", "src/imagenes/"};
-            for (String c : carpetasProyecto) {
-                File fProy = new File(c + fDirecto.getName());
-                if (fProy.exists()) return fProy;
+        if (rutaGuardada == null || rutaGuardada.trim().isEmpty()) {
+            if (imagenBytes != null && imagenBytes.length > 0) {
+                return restaurarBytesAArchivo(autor, "post_" + System.currentTimeMillis() + ".jpg", imagenBytes);
             }
+            return null;
+        }
 
-            // 4. Probar en las carpetas de otros usuarios
-            File raizInsta = new File(RUTA_INSTA);
-            if (raizInsta.exists()) {
-                File[] subdirs = raizInsta.listFiles(File::isDirectory);
-                if (subdirs != null) {
-                    for (File dir : subdirs) {
-                        File candidato = new File(dir, "imagenes/" + fDirecto.getName());
-                        if (candidato.exists()) return candidato;
+        // 1. Probar ruta directa tal cual
+        File fDirecto = new File(rutaGuardada);
+        if (fDirecto.exists() && fDirecto.isFile() && fDirecto.length() > 0) {
+            return fDirecto;
+        }
+
+        String nombreSolo = extraerNombreArchivo(rutaGuardada);
+        if (nombreSolo.isEmpty()) return null;
+
+        // 2. Si es una imagen demo y no existe, generarla de inmediato en esta máquina
+        if (nombreSolo.equalsIgnoreCase("noticia_demo.jpg") || (autor != null && autor.equalsIgnoreCase("noticias"))) {
+            String r = asegurarImagenDemo("noticias", "noticia_demo.jpg", new Color(30, 58, 138), "NOTICIAS HOY");
+            File f = new File(r);
+            if (f.exists() && f.length() > 0) return f;
+        }
+        if (nombreSolo.equalsIgnoreCase("deporte_demo.jpg") || (autor != null && autor.equalsIgnoreCase("deportes"))) {
+            String r = asegurarImagenDemo("deportes", "deporte_demo.jpg", new Color(4, 120, 87), "CAMPEONATO 2026");
+            File f = new File(r);
+            if (f.exists() && f.length() > 0) return f;
+        }
+        if (nombreSolo.equalsIgnoreCase("moda_demo.jpg") || (autor != null && autor.equalsIgnoreCase("entretenimiento"))) {
+            String r = asegurarImagenDemo("entretenimiento", "moda_demo.jpg", new Color(190, 24, 93), "FASHION & TECH");
+            File f = new File(r);
+            if (f.exists() && f.length() > 0) return f;
+        }
+
+        // 3. Probar en la carpeta de imágenes del autor local
+        if (autor != null && !autor.trim().isEmpty()) {
+            File fEnUsuario = new File(RUTA_INSTA + "/" + autor + "/imagenes/" + nombreSolo);
+            if (fEnUsuario.exists() && fEnUsuario.isFile() && fEnUsuario.length() > 0) {
+                return fEnUsuario;
+            }
+        }
+
+        // 4. Probar en las carpetas de imágenes de los demás usuarios
+        File raizInsta = new File(RUTA_INSTA);
+        if (raizInsta.exists()) {
+            File[] subdirs = raizInsta.listFiles(File::isDirectory);
+            if (subdirs != null) {
+                for (File dir : subdirs) {
+                    File candidato = new File(dir, "imagenes/" + nombreSolo);
+                    if (candidato.exists() && candidato.isFile() && candidato.length() > 0) {
+                        return candidato;
                     }
                 }
             }
         }
 
-        // 5. Si no existe en el disco de esta PC pero el post tiene los bytes incrustados,
-        // autorestaurarlo físicamente en el disco local de esta PC
+        // 5. Probar en carpetas comunes del proyecto
+        String[] carpetasProyecto = {"Imagenes/", "src/Imagenes/", "imagenes/", "src/imagenes/", "./", "src/"};
+        for (String c : carpetasProyecto) {
+            File fProy = new File(c + nombreSolo);
+            if (fProy.exists() && fProy.isFile() && fProy.length() > 0) {
+                return fProy;
+            }
+        }
+
+        // 6. Si no existe en disco pero tiene bytes serializados, restaurarlo físicamente
         if (imagenBytes != null && imagenBytes.length > 0) {
-            try {
-                File dirImg = new File(RUTA_INSTA + "/" + autor + "/imagenes");
-                if (!dirImg.exists()) dirImg.mkdirs();
+            File rest = restaurarBytesAArchivo(autor, nombreSolo, imagenBytes);
+            if (rest != null && rest.exists() && rest.length() > 0) {
+                return rest;
+            }
+        }
 
-                String nombre = (rutaGuardada != null && !rutaGuardada.trim().isEmpty()) 
-                        ? new File(rutaGuardada).getName() 
-                        : ("post_" + System.currentTimeMillis() + ".jpg");
-
-                File restaurado = new File(dirImg, nombre);
-                if (!restaurado.exists()) {
-                    Files.write(restaurado.toPath(), imagenBytes);
-                }
-                return restaurado;
-            } catch (Exception ignored) {}
+        // 7. En caso extremo donde no exista en disco ni haya bytes (post antiguo de otra PC),
+        // generar placeholder visual para que la interfaz nunca quede sin imagen ni se rompa.
+        if (autor != null && !autor.trim().isEmpty() && !nombreSolo.isEmpty()) {
+            String r = asegurarImagenDemo(autor, nombreSolo, new Color(45, 55, 72), "POST @" + autor.toUpperCase());
+            File fGen = new File(r);
+            if (fGen.exists() && fGen.length() > 0) {
+                return fGen;
+            }
         }
 
         return null;
@@ -139,7 +181,33 @@ public class InstaFileManager {
 
     public static File resolverImagenPost(Publicacion p) {
         if (p == null) return null;
-        return resolverImagenPost(p.getAutor(), p.getRutaImagen(), p.getImagenBytes());
+        if (p.getRutaImagen() == null || p.getRutaImagen().trim().isEmpty()) return null;
+
+        File f = resolverImagenPost(p.getAutor(), p.getRutaImagen(), p.getImagenBytes());
+        // Auto-reparar bytes en memoria para que se guarden si faltaban
+        if (f != null && f.exists() && f.length() > 0 && (p.getImagenBytes() == null || p.getImagenBytes().length == 0)) {
+            try {
+                p.setImagenBytes(Files.readAllBytes(f.toPath()));
+            } catch (Exception ignored) {}
+        }
+        return f;
+    }
+
+    private static File restaurarBytesAArchivo(String autor, String nombreArchivo, byte[] bytes) {
+        if (bytes == null || bytes.length == 0) return null;
+        try {
+            String userDir = (autor != null && !autor.trim().isEmpty()) ? autor : "General";
+            File dirImg = new File(RUTA_INSTA + "/" + userDir + "/imagenes");
+            if (!dirImg.exists()) dirImg.mkdirs();
+
+            File restaurado = new File(dirImg, nombreArchivo);
+            if (!restaurado.exists() || restaurado.length() == 0) {
+                Files.write(restaurado.toPath(), bytes);
+            }
+            return restaurado;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private static void asegurarStickersPorDefecto() {
@@ -155,7 +223,7 @@ public class InstaFileManager {
 
         for (int i = 0; i < nombres.length; i++) {
             File f = new File(RUTA_STICKERS_GLOBALES, nombres[i] + ".png");
-            if (!f.exists()) {
+            if (!f.exists() || f.length() == 0) {
                 try {
                     BufferedImage img = new BufferedImage(120, 120, BufferedImage.TYPE_INT_ARGB);
                     Graphics2D g2 = img.createGraphics();

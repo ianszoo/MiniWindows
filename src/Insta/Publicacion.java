@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package Insta;
 
 import java.io.File;
@@ -24,7 +19,7 @@ public class Publicacion implements Serializable {
     private Date fecha;
     private String contenido; 
     private String rutaImagen;
-    private byte[] imagenBytes; // Guarda los bytes reales de la imagen para portabilidad total
+    private byte[] imagenBytes; // Guarda los bytes reales para portabilidad total entre computadoras
     private String carpetaPersonal;
     private String sticker;
     private boolean esHistoria;
@@ -45,11 +40,11 @@ public class Publicacion implements Serializable {
         this.hashtags = new Lista<>();
         this.menciones = new Lista<>();
 
-        // Cargar los bytes binarios de la imagen para que viaje portable con el objeto serializado
+        // FIX: Cargar los bytes binarios de la imagen para que viaje incrustada en insta.ins
         if (rutaImagen != null && !rutaImagen.trim().isEmpty()) {
             try {
                 File f = new File(rutaImagen);
-                if (f.exists()) {
+                if (f.exists() && f.isFile() && f.length() > 0) {
                     this.imagenBytes = Files.readAllBytes(f.toPath());
                 }
             } catch (Exception ignored) {}
@@ -84,22 +79,22 @@ public class Publicacion implements Serializable {
     public String getContenido() {
         return contenido; 
     }
-    public String getRutaImagen() {
+    public String getRutaImagen() { 
         return rutaImagen; 
     }
-    public byte[] getImagenBytes() {
-        return imagenBytes;
+    public byte[] getImagenBytes() { 
+        return imagenBytes; 
     }
     public void setImagenBytes(byte[] imagenBytes) {
-        this.imagenBytes = imagenBytes;
+        this.imagenBytes = imagenBytes; 
     }
     public String getCarpetaPersonal() {
         return carpetaPersonal; 
     }
-    public String getSticker() {
+    public String getSticker() { 
         return sticker; 
     }
-    public boolean isEsHistoria() {
+    public boolean isEsHistoria() { 
         return esHistoria; 
     }
     public AspectRatio getFormatoAspecto() {

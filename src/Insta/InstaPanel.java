@@ -335,12 +335,24 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
             Usuario uAutor = InstaFileManager.buscarUsuario(autor);
             if (uAutor != null && uAutor.isActivo()) {
                 Lista<Publicacion> posts = InstaFileManager.cargarPublicaciones(autor);
+                boolean huboCambios = false;
                 Nodo<Publicacion> np = posts.getHead();
                 while (np != null) {
-                    if (!np.getDato().isEsHistoria()) {
-                        insertarOrdenadoPorFecha(postsOrdenados, np.getDato());
+                    Publicacion pub = np.getDato();
+                    File res = InstaFileManager.resolverImagenPost(pub);
+                    if (res != null && res.exists() && (pub.getImagenBytes() == null || pub.getImagenBytes().length == 0)) {
+                        try {
+                            pub.setImagenBytes(Files.readAllBytes(res.toPath()));
+                            huboCambios = true;
+                        } catch (Exception ignored) {}
+                    }
+                    if (!pub.isEsHistoria()) {
+                        insertarOrdenadoPorFecha(postsOrdenados, pub);
                     }
                     np = np.getSiguiente();
+                }
+                if (huboCambios) {
+                    InstaFileManager.guardarPublicaciones(autor, posts);
                 }
             }
             na = na.getSiguiente();
@@ -730,6 +742,9 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
                 File sel = fc.getSelectedFile();
                 File destino = new File(InstaFileManager.RUTA_INSTA + "/" + usuarioActual.getUsername() + "/imagenes/" + sel.getName());
                 try {
+                    if (!destino.getParentFile().exists()) {
+                        destino.getParentFile().mkdirs();
+                    }
                     Files.copy(sel.toPath(), destino.toPath(), StandardCopyOption.REPLACE_EXISTING);
                     rutaSel[0] = destino.getAbsolutePath();
                     btnImg.setText("Imagen: " + sel.getName());
@@ -782,6 +797,16 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
                     chkHistoria.isSelected(),
                     Publicacion.AspectRatio.CUADRADA
             );
+
+            // FIX: Si por algún motivo el constructor no pudo leer los bytes, garantizarlos aquí
+            if (rutaSel[0] != null) {
+                File fImg = new File(rutaSel[0]);
+                if (fImg.exists() && (p.getImagenBytes() == null || p.getImagenBytes().length == 0)) {
+                    try {
+                        p.setImagenBytes(Files.readAllBytes(fImg.toPath()));
+                    } catch (Exception ignored) {}
+                }
+            }
 
             Lista<Publicacion> posts = InstaFileManager.cargarPublicaciones(usuarioActual.getUsername());
             posts.agregar(p);
