@@ -21,6 +21,7 @@ public class WindowsLoginFrame extends JFrame {
     private JLabel lblNombreCompleto;
     private JLabel lblUsername;
     private JPasswordField txtPass;
+    private JPasswordField txtPassConfirm;
     private JLabel lblError;
     private JLabel lblReloj;
 
@@ -42,7 +43,6 @@ public class WindowsLoginFrame extends JFrame {
         cargarFondo();
         cargarUsuarioAdmin();
 
-        // Panel de Fondo con capa acrílica
         JPanel backgroundPanel = new JPanel(new BorderLayout()) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -60,15 +60,12 @@ public class WindowsLoginFrame extends JFrame {
             }
         };
 
-        // Centro: Avatar del Administrador y campo de contraseña
         JPanel centerWrapper = new JPanel(new GridBagLayout());
         centerWrapper.setOpaque(false);
         centerWrapper.add(crearPanelLoginCentral());
         backgroundPanel.add(centerWrapper, BorderLayout.CENTER);
 
-        // Inferior: Reloj en vivo y Botón Apagar
         backgroundPanel.add(crearBarraInferiorWindows(), BorderLayout.SOUTH);
-
         add(backgroundPanel, BorderLayout.CENTER);
 
         SwingUtilities.invokeLater(() -> txtPass.requestFocusInWindow());
@@ -110,7 +107,7 @@ public class WindowsLoginFrame extends JFrame {
         JPanel center = new JPanel();
         center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
         center.setOpaque(false);
-        center.setPreferredSize(new Dimension(380, 420));
+        center.setPreferredSize(new Dimension(380, 480));
 
         // 1. Avatar Circular Grande (110px)
         avatarComp = new JComponent() {
@@ -178,9 +175,20 @@ public class WindowsLoginFrame extends JFrame {
         lblEtiquetaPass.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         txtPass = new JPasswordField();
-        JPanel boxPass = crearCajaInputWindows(txtPass);
+        JPanel boxPass = crearCajaInputWindows(txtPass, false);
 
-        // 5. Mensaje de Error
+        // 5. Etiqueta Confirmar Contraseña
+        JLabel lblEtiquetaPassConf = new JLabel("Confirmar Contraseña:", SwingConstants.LEFT);
+        lblEtiquetaPassConf.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lblEtiquetaPassConf.setForeground(TEXT_WHITE);
+        lblEtiquetaPassConf.setMaximumSize(new Dimension(280, 18));
+        lblEtiquetaPassConf.setPreferredSize(new Dimension(280, 18));
+        lblEtiquetaPassConf.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        txtPassConfirm = new JPasswordField();
+        JPanel boxPassConf = crearCajaInputWindows(txtPassConfirm, true);
+
+        // 6. Mensaje de Error
         lblError = new JLabel(" ", SwingConstants.CENTER);
         lblError.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         lblError.setForeground(new Color(252, 165, 165));
@@ -191,18 +199,24 @@ public class WindowsLoginFrame extends JFrame {
         center.add(lblNombreCompleto);
         center.add(Box.createVerticalStrut(2));
         center.add(lblUsername);
-        center.add(Box.createVerticalStrut(22));
+        center.add(Box.createVerticalStrut(18));
 
         center.add(lblEtiquetaPass);
         center.add(Box.createVerticalStrut(4));
         center.add(boxPass);
         center.add(Box.createVerticalStrut(8));
+
+        center.add(lblEtiquetaPassConf);
+        center.add(Box.createVerticalStrut(4));
+        center.add(boxPassConf);
+        center.add(Box.createVerticalStrut(8));
+
         center.add(lblError);
 
         return center;
     }
 
-    private JPanel crearCajaInputWindows(JPasswordField pf) {
+    private JPanel crearCajaInputWindows(JPasswordField pf, boolean incluirBotonIngresar) {
         JPanel box = new JPanel(new BorderLayout(4, 0)) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -267,42 +281,44 @@ public class WindowsLoginFrame extends JFrame {
             btnOjo.repaint();
         });
 
-        JButton btnSubmit = new JButton() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                if (getModel().isRollover()) {
-                    g2.setColor(new Color(0, 0, 0, 30));
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 4, 4);
-                }
-                g2.setColor(new Color(71, 85, 105));
-                g2.setStroke(new BasicStroke(2.0f));
-
-                int cx = getWidth() / 2;
-                int cy = getHeight() / 2;
-
-                g2.drawLine(cx - 5, cy, cx + 5, cy);
-                g2.drawLine(cx + 1, cy - 4, cx + 5, cy);
-                g2.drawLine(cx + 1, cy + 4, cx + 5, cy);
-                g2.dispose();
-            }
-        };
-        btnSubmit.setPreferredSize(new Dimension(30, 28));
-        btnSubmit.setContentAreaFilled(false);
-        btnSubmit.setBorderPainted(false);
-        btnSubmit.setFocusPainted(false);
-        btnSubmit.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btnSubmit.setToolTipText("Iniciar Sesión");
-
         ActionListener accion = e -> procesarLoginAdmin();
-        btnSubmit.addActionListener(accion);
         pf.addActionListener(accion);
 
         JPanel rightActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         rightActions.setOpaque(false);
         rightActions.add(btnOjo);
-        rightActions.add(btnSubmit);
+
+        if (incluirBotonIngresar) {
+            JButton btnSubmit = new JButton() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    if (getModel().isRollover()) {
+                        g2.setColor(new Color(0, 0, 0, 30));
+                        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 4, 4);
+                    }
+                    g2.setColor(new Color(71, 85, 105));
+                    g2.setStroke(new BasicStroke(2.0f));
+
+                    int cx = getWidth() / 2;
+                    int cy = getHeight() / 2;
+
+                    g2.drawLine(cx - 5, cy, cx + 5, cy);
+                    g2.drawLine(cx + 1, cy - 4, cx + 5, cy);
+                    g2.drawLine(cx + 1, cy + 4, cx + 5, cy);
+                    g2.dispose();
+                }
+            };
+            btnSubmit.setPreferredSize(new Dimension(30, 28));
+            btnSubmit.setContentAreaFilled(false);
+            btnSubmit.setBorderPainted(false);
+            btnSubmit.setFocusPainted(false);
+            btnSubmit.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            btnSubmit.setToolTipText("Iniciar Sesión");
+            btnSubmit.addActionListener(accion);
+            rightActions.add(btnSubmit);
+        }
 
         box.add(pf, BorderLayout.CENTER);
         box.add(rightActions, BorderLayout.EAST);
@@ -311,9 +327,17 @@ public class WindowsLoginFrame extends JFrame {
 
     private void procesarLoginAdmin() {
         String pass = new String(txtPass.getPassword());
+        String passConf = new String(txtPassConfirm.getPassword());
 
-        if (pass.isEmpty()) {
-            lblError.setText("Escribe la contraseña de administrador.");
+        if (pass.isEmpty() || passConf.isEmpty()) {
+            lblError.setText("Escribe y confirma la contraseña de administrador.");
+            return;
+        }
+
+        if (!pass.equals(passConf)) {
+            lblError.setText("Las contraseñas no coinciden.");
+            txtPassConfirm.setText("");
+            txtPassConfirm.requestFocus();
             return;
         }
 
@@ -328,6 +352,7 @@ public class WindowsLoginFrame extends JFrame {
             } else {
                 lblError.setText("Contraseña incorrecta. (Por defecto: Admin2026!)");
                 txtPass.setText("");
+                txtPassConfirm.setText("");
                 txtPass.requestFocus();
             }
         } catch (CorruptoException ex) {

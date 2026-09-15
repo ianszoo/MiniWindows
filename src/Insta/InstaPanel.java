@@ -1960,10 +1960,26 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         JPasswordField txtPass = new JPasswordField();
         JPanel passRow = crearCampoPasswordConOjo(txtPass);
 
+        JLabel lblPassConfirm = crearEtiquetaCampo("Confirmar Contraseña:");
+        JPasswordField txtPassConfirm = new JPasswordField();
+        JPanel passConfirmRow = crearCampoPasswordConOjo(txtPassConfirm);
+
         JButton btnLogin = crearBotonGradiente("Iniciar Sesión", 300, 38);
         btnLogin.addActionListener(e -> {
             String u = txtUser.getText().trim();
             String p = new String(txtPass.getPassword());
+            String pc = new String(txtPassConfirm.getPassword());
+
+            if (u.isEmpty() || p.isEmpty() || pc.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Por favor completa todos los campos.", "Campos incompletos", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            if (!p.equals(pc)) {
+                JOptionPane.showMessageDialog(this, "Las contraseñas no coinciden. Por favor verifícalas.", "Error de Contraseña", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
             try {
                 Usuario userAuth = InstaFileManager.autenticarInsta(u, p);
                 if (userAuth != null) {
@@ -1998,15 +2014,18 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         btnVolver.addActionListener(e -> authCardLayout.show(authContainer, "LANDING"));
 
         card.add(lblLogo);
-        card.add(Box.createVerticalStrut(18));
+        card.add(Box.createVerticalStrut(14));
         card.add(lblUser);
         card.add(txtUser);
-        card.add(Box.createVerticalStrut(8));
+        card.add(Box.createVerticalStrut(6));
         card.add(lblPass);
         card.add(passRow);
-        card.add(Box.createVerticalStrut(18));
+        card.add(Box.createVerticalStrut(6));
+        card.add(lblPassConfirm);
+        card.add(passConfirmRow);
+        card.add(Box.createVerticalStrut(16));
         card.add(btnLogin);
-        card.add(Box.createVerticalStrut(12));
+        card.add(Box.createVerticalStrut(10));
         card.add(btnVolver);
 
         return card;
