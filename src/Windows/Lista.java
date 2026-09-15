@@ -80,11 +80,11 @@ public class Lista<T> implements Serializable{
         return false;
     }
 
-    public Nodo<T> getHead() {
+    public Nodo<T> getHead(){
         return head;
     }
 
-    public int getSize() {
+    public int getSize(){
         return size;
     }
     

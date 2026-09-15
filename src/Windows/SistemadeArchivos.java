@@ -29,7 +29,6 @@ public class SistemadeArchivos {
             guardarUsuarios(listaInicial);
             crearEstructuraUsuario("admin");
         } else {
-            // Asegurar que el admin existente esté siempre activo
             try {
                 Lista<Usuario> list = cargarUsuarios();
                 Nodo<Usuario> cur = list.getHead();
@@ -61,7 +60,6 @@ public class SistemadeArchivos {
 
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
             Lista<Usuario> list = (Lista<Usuario>) ois.readObject();
-            // Garantizar que admin siempre esté activo en memoria
             Nodo<Usuario> n = list.getHead();
             while (n != null) {
                 if (n.getDato().getUsername().equalsIgnoreCase("admin")) {
@@ -88,7 +86,7 @@ public class SistemadeArchivos {
     }
     
     public static void crearEstructuraUsuario(String username) {
-        File userDir = new File(RUTA_RAIZ_SIMULADA + "/" + username);
+        File userDir = new File(RUTA_RAIZ_SIMULADA + "/" +username);
         if (!userDir.exists()) {
             userDir.mkdirs();
             new File(userDir, "Mis Documentos").mkdirs();
@@ -123,7 +121,7 @@ public class SistemadeArchivos {
         Nodo<Usuario> actual = usuarios.getHead();
         while (actual != null) {
             if (actual.getDato().getUsername().equalsIgnoreCase(username)) {
-                throw new UsernameDuplicadoException("El usuario '" + username + "' ya existe en el sistema.");
+                throw new UsernameDuplicadoException("El usuario '"+username+"' ya existe en el sistema.");
             }
             actual = actual.getSiguiente();
         }

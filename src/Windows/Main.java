@@ -10,17 +10,13 @@ import javax.swing.UIManager;
 public class Main {
     public static void main(String[] args) {
         System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
-        // 1. Inicializar persistencia binaria de Z:\
         SistemadeArchivos.inicializarSistema();
-
-        // 2. Iniciar Servidor de Sockets para sincronización en tiempo real
         InstaServer.iniciarServidor();
 
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception ignored) {}
 
-        // 3. Lanzar interfaz gráfica
         SwingUtilities.invokeLater(() -> {
             new WindowsLoginFrame().setVisible(true);
         });

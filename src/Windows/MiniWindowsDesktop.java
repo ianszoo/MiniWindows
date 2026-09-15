@@ -44,8 +44,6 @@ public class MiniWindowsDesktop extends JFrame {
     private JPanel startMenu;
     private boolean startMenuVisible = false;
     private Usuario usuarioActual;
-
-    // Registro de Ventanas Abiertas
     private final Map<String, JInternalFrame> ventanasAbiertas = new HashMap<>();
 
     // Portapapeles del Explorador de Archivos
@@ -295,7 +293,6 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // MENÚ INICIO (DISEÑO PROFESIONAL WINDOWS 10/11)
     private void crearMenuInicio() {
         startMenu = new JPanel() {
             @Override
@@ -353,7 +350,6 @@ public class MiniWindowsDesktop extends JFrame {
         desktopPane.add(startMenu, JLayeredPane.POPUP_LAYER);
     }
 
-    // BOTÓN DE MENÚ CON SUBRAYADOR SUAVE Y ELEGANTE (SIN FONDO BLANCO)
     private JButton crearBotonMenu(String nombreIcono, String texto, Runnable accion, boolean isHeader) {
         JButton btn = new JButton(texto) {
             @Override
@@ -361,7 +357,7 @@ public class MiniWindowsDesktop extends JFrame {
                 if (!isHeader && getModel().isRollover()) {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.setColor(HOVER_COLOR); // Resaltador sutil translúcido idéntico al sistema
+                    g2.setColor(HOVER_COLOR); 
                     g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
                     g2.dispose();
                 }
@@ -2226,7 +2222,6 @@ public class MiniWindowsDesktop extends JFrame {
         return p;
     }
 
-    // REPRODUCTOR DE MÚSICA
     private static class MotorAudioPlayer {
         private Player playerJLayer = null;
         private FileInputStream fis = null;
