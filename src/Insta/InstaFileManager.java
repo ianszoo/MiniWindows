@@ -94,6 +94,7 @@ public class InstaFileManager {
     }
 
     public static File resolverImagenPost(String autor, String rutaGuardada, byte[] imagenBytes) {
+        // 1. Si no hay ruta pero hay bytes en memoria, restaurar directamente
         if (rutaGuardada == null || rutaGuardada.trim().isEmpty()) {
             if (imagenBytes != null && imagenBytes.length > 0) {
                 return restaurarBytesAArchivo(autor, "post_" + System.currentTimeMillis() + ".jpg", imagenBytes);
@@ -101,7 +102,7 @@ public class InstaFileManager {
             return null;
         }
 
-        // 1. Probar ruta directa tal cual
+        // 2. Probar ruta directa tal cual viene guardada
         File fDirecto = new File(rutaGuardada);
         if (fDirecto.exists() && fDirecto.isFile() && fDirecto.length() > 0) {
             return fDirecto;
@@ -110,46 +111,40 @@ public class InstaFileManager {
         String nombreSolo = extraerNombreArchivo(rutaGuardada);
         if (nombreSolo.isEmpty()) return null;
 
-        // 2. Si es una imagen demo y no existe, generarla de inmediato en esta máquina
-        if (nombreSolo.equalsIgnoreCase("noticia_demo.jpg") || (autor != null && autor.equalsIgnoreCase("noticias"))) {
+        // 3. Si son las imágenes DEMO predeterminadas del sistema
+        if (nombreSolo.equalsIgnoreCase("noticia_demo.jpg")) {
             String r = asegurarImagenDemo("noticias", "noticia_demo.jpg", new Color(30, 58, 138), "NOTICIAS HOY");
             File f = new File(r);
             if (f.exists() && f.length() > 0) return f;
         }
-        if (nombreSolo.equalsIgnoreCase("deporte_demo.jpg") || (autor != null && autor.equalsIgnoreCase("deportes"))) {
+        if (nombreSolo.equalsIgnoreCase("deporte_demo.jpg")) {
             String r = asegurarImagenDemo("deportes", "deporte_demo.jpg", new Color(4, 120, 87), "CAMPEONATO 2026");
             File f = new File(r);
             if (f.exists() && f.length() > 0) return f;
         }
-        if (nombreSolo.equalsIgnoreCase("moda_demo.jpg") || (autor != null && autor.equalsIgnoreCase("entretenimiento"))) {
+        if (nombreSolo.equalsIgnoreCase("moda_demo.jpg")) {
             String r = asegurarImagenDemo("entretenimiento", "moda_demo.jpg", new Color(190, 24, 93), "FASHION & TECH");
             File f = new File(r);
             if (f.exists() && f.length() > 0) return f;
         }
 
-        // 3. Probar en la carpeta de imágenes del autor local
+        // 4. BÚSQUEDA PROFUNDA: Buscar en todo el directorio del autor (imagenes, folders_personales, etc.)
         if (autor != null && !autor.trim().isEmpty()) {
-            File fEnUsuario = new File(RUTA_INSTA + "/" + autor + "/imagenes/" + nombreSolo);
-            if (fEnUsuario.exists() && fEnUsuario.isFile() && fEnUsuario.length() > 0) {
-                return fEnUsuario;
+            File dirUsuario = new File(RUTA_INSTA + "/" + autor);
+            File encontrado = buscarArchivoRecursivo(dirUsuario, nombreSolo);
+            if (encontrado != null && encontrado.exists() && encontrado.length() > 0) {
+                return encontrado;
             }
         }
 
-        // 4. Probar en las carpetas de imágenes de los demás usuarios
+        // 5. BÚSQUEDA GLOBAL: Buscar en TODO INSTA_RAIZ recursivamente
         File raizInsta = new File(RUTA_INSTA);
-        if (raizInsta.exists()) {
-            File[] subdirs = raizInsta.listFiles(File::isDirectory);
-            if (subdirs != null) {
-                for (File dir : subdirs) {
-                    File candidato = new File(dir, "imagenes/" + nombreSolo);
-                    if (candidato.exists() && candidato.isFile() && candidato.length() > 0) {
-                        return candidato;
-                    }
-                }
-            }
+        File encontradoGlobal = buscarArchivoRecursivo(raizInsta, nombreSolo);
+        if (encontradoGlobal != null && encontradoGlobal.exists() && encontradoGlobal.length() > 0) {
+            return encontradoGlobal;
         }
 
-        // 5. Probar en carpetas comunes del proyecto
+        // 6. Probar en carpetas del proyecto local
         String[] carpetasProyecto = {"Imagenes/", "src/Imagenes/", "imagenes/", "src/imagenes/", "./", "src/"};
         for (String c : carpetasProyecto) {
             File fProy = new File(c + nombreSolo);
@@ -158,7 +153,7 @@ public class InstaFileManager {
             }
         }
 
-        // 6. Si no existe en disco pero tiene bytes serializados, restaurarlo físicamente
+        // 7. Si el objeto contiene los bytes binarios, reconstruir el archivo en disco
         if (imagenBytes != null && imagenBytes.length > 0) {
             File rest = restaurarBytesAArchivo(autor, nombreSolo, imagenBytes);
             if (rest != null && rest.exists() && rest.length() > 0) {
@@ -166,8 +161,7 @@ public class InstaFileManager {
             }
         }
 
-        // 7. En caso extremo donde no exista en disco ni haya bytes (post antiguo de otra PC),
-        // generar placeholder visual para que la interfaz nunca quede sin imagen ni se rompa.
+        // 8. Respaldo de emergencia: Si el archivo físico jamás existió en tu PC ni venían bytes
         if (autor != null && !autor.trim().isEmpty() && !nombreSolo.isEmpty()) {
             String r = asegurarImagenDemo(autor, nombreSolo, new Color(45, 55, 72), "POST @" + autor.toUpperCase());
             File fGen = new File(r);
@@ -176,6 +170,28 @@ public class InstaFileManager {
             }
         }
 
+        return null;
+    }
+
+    /**
+     * Busca un archivo por nombre sin importar en qué subcarpeta esté metido
+     * (ignora mayúsculas/minúsculas).
+     */
+    private static File buscarArchivoRecursivo(File carpeta, String nombreBuscado) {
+        if (carpeta == null || !carpeta.exists() || !carpeta.isDirectory()) {
+            return null;
+        }
+        File[] archivos = carpeta.listFiles();
+        if (archivos == null) return null;
+
+        for (File f : archivos) {
+            if (f.isDirectory()) {
+                File encontrado = buscarArchivoRecursivo(f, nombreBuscado);
+                if (encontrado != null) return encontrado;
+            } else if (f.getName().equalsIgnoreCase(nombreBuscado)) {
+                return f;
+            }
+        }
         return null;
     }
 
