@@ -277,9 +277,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         return btn;
     }
 
-    // =========================================================================
-    // 1. TIMELINE
-    // =========================================================================
     private JPanel crearVistaTimeline() {
         JPanel feedRoot = new JPanel(new BorderLayout());
         feedRoot.setBackground(BG_PHONE);
@@ -538,9 +535,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         return card;
     }
 
-    // =========================================================================
-    // 2. BUSCADOR
-    // =========================================================================
     private JPanel crearVistaBuscar() {
         JPanel p = new JPanel(new BorderLayout(8, 8));
         p.setBackground(BG_PHONE);
@@ -703,9 +697,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         return p;
     }
 
-    // =========================================================================
-    // 3. CARGAR IMÁGENES / PUBLICAR
-    // =========================================================================
     private JPanel crearVistaUpload() {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(BG_PHONE);
@@ -821,9 +812,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         return root;
     }
 
-    // =========================================================================
-    // 4. NOTIFICACIONES
-    // =========================================================================
     private JPanel crearVistaMenciones() {
         JPanel p = new JPanel(new BorderLayout(8, 8));
         p.setBackground(BG_PHONE);
@@ -901,9 +889,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         }
     }
 
-    // =========================================================================
-    // 5. PERFIL DE USUARIO
-    // =========================================================================
     private JPanel crearVistaPerfil() {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(BG_PHONE);
@@ -1169,9 +1154,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         return p;
     }
 
-    // =========================================================================
-    // 6. INBOX (BANDEJA DE ENTRADA CON MARCAR LEÍDOS + CHAT)
-    // =========================================================================
     private JPanel crearVistaInbox() {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(BG_PHONE);
@@ -1267,11 +1249,9 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         leftChatInfo.add(lblChatHeaderUser);
         topChat.add(leftChatInfo, BorderLayout.WEST);
 
-        // Panel de acciones en la parte superior derecha
         JPanel rightActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         rightActions.setOpaque(false);
 
-        // OPCIÓN REQUERIDA POR RÚBRICA: MARCAR COMO LEÍDO
         JButton btnMarcarLeido = crearBotonSecundario("Marcar leído");
         btnMarcarLeido.setToolTipText("Marcar todos los mensajes de este chat como leídos");
         btnMarcarLeido.addActionListener(e -> {
@@ -1561,9 +1541,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         pnlChatStream.repaint();
     }
 
-    // =========================================================================
-    // MODAL DE STICKERS
-    // =========================================================================
     private void mostrarSelectorStickers(java.util.function.Consumer<String> callback) {
         Window parentWindow = SwingUtilities.getWindowAncestor(this);
         JDialog dlg;
@@ -1672,9 +1649,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         dlg.setVisible(true);
     }
 
-    // =========================================================================
-    // 7. EDITAR PERFIL (CON CONFIRMAR CONTRASEÑA AGREGADO)
-    // =========================================================================
     private JPanel crearVistaEditarPerfil() {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(BG_PHONE);
@@ -1794,9 +1768,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         return root;
     }
 
-    // =========================================================================
-    // 8. CONFIGURACIÓN Y CERRAR SESIÓN
-    // =========================================================================
     private JPanel crearVistaConfiguracion() {
         JPanel root = new JPanel(new BorderLayout());
         root.setBackground(BG_PHONE);
@@ -1868,9 +1839,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         return root;
     }
 
-    // =========================================================================
-    // VISTA DE AUTENTICACIÓN
-    // =========================================================================
     private JPanel crearVistaAutenticacionMobile() {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(BG_PHONE);
@@ -2157,9 +2125,8 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         return card;
     }
 
-    // =========================================================================
     // UTILIDADES
-    // =========================================================================
+
     private JPanel crearCampoPasswordConOjo(JPasswordField pf) {
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setMaximumSize(new Dimension(300, 36));

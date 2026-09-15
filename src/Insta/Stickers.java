@@ -9,7 +9,6 @@ import java.io.Serializable;
 
 /**
  * @author Ian Suazo Palao & David Suazo Palao
- * Modelo de Sticker Serializable (Sección 4.12)
  */
 public class Stickers implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -24,14 +23,26 @@ public class Stickers implements Serializable {
         this.esGlobal = esGlobal;
     }
 
-    public String getNombre() { return nombre; }
-    public void setNombre(String nombre) { this.nombre = nombre; }
+    public String getNombre() {
+        return nombre; 
+    }
+    public void setNombre(String nombre) {
+        this.nombre = nombre; 
+    }
 
-    public String getRutaArchivo() { return rutaArchivo; }
-    public void setRutaArchivo(String rutaArchivo) { this.rutaArchivo = rutaArchivo; }
+    public String getRutaArchivo() {
+        return rutaArchivo; 
+    }
+    public void setRutaArchivo(String rutaArchivo) {
+        this.rutaArchivo = rutaArchivo; 
+    }
 
-    public boolean isEsGlobal() { return esGlobal; }
-    public void setEsGlobal(boolean esGlobal) { this.esGlobal = esGlobal; }
+    public boolean isEsGlobal() {
+        return esGlobal; 
+    }
+    public void setEsGlobal(boolean esGlobal) {
+        this.esGlobal = esGlobal; 
+    }
 
     @Override
     public boolean equals(Object obj) {

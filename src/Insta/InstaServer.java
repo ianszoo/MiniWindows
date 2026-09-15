@@ -10,7 +10,6 @@ import java.net.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Servidor Central TCP para INSTA+ con protección contra puertos en uso.
  * @author Ian Suazo Palao & David Suazo Palao
  */
 public class InstaServer {
@@ -24,7 +23,6 @@ public class InstaServer {
 
         Thread threadServidor = new Thread(() -> {
             try {
-                // Crear socket con reuso de dirección activado
                 serverSocket = new ServerSocket();
                 serverSocket.setReuseAddress(true);
                 serverSocket.bind(new InetSocketAddress(PUERTO));
@@ -36,12 +34,10 @@ public class InstaServer {
                         Socket socketCliente = serverSocket.accept();
                         new Thread(new ManejadorCliente(socketCliente)).start();
                     } catch (SocketException se) {
-                        // Ocurre si el servidor se apaga intencionalmente
                         break;
                     }
                 }
             } catch (BindException be) {
-                // El puerto ya está tomado por una instancia previa o activa del servidor
                 System.out.println("[SERVIDOR INSTA+] El puerto " + PUERTO + " ya está en uso. Conectando a servidor existente.");
                 activo = true;
             } catch (IOException e) {
@@ -97,7 +93,6 @@ public class InstaServer {
 
             switch (accion) {
                 case "CONNECT":
-                    // CONNECT|<username>
                     if (tokens.length > 1) {
                         this.usuarioAutenticado = tokens[1].trim();
                         clientesConectados.put(usuarioAutenticado.toLowerCase(), out);
@@ -106,7 +101,6 @@ public class InstaServer {
                     break;
 
                 case "CHAT_MSG":
-                    // CHAT_MSG|<emisor>|<receptor>|<tipo>|<contenido>
                     if (tokens.length >= 5) {
                         String emisor = tokens[1];
                         String receptor = tokens[2];
@@ -116,19 +110,16 @@ public class InstaServer {
                         MensajeInbox.Tipo tipo = tipoStr.equals("STICKER") ? MensajeInbox.Tipo.STICKER : MensajeInbox.Tipo.TEXTO;
                         InstaFileManager.enviarMensaje(emisor, receptor, contenido, tipo);
 
-                        // Notificación en vivo si el receptor está conectado
                         PrintWriter outReceptor = clientesConectados.get(receptor.toLowerCase());
                         if (outReceptor != null) {
                             outReceptor.println("NUEVO_MENSAJE|" + emisor + "|" + receptor + "|" + tipoStr + "|" + contenido);
                         }
 
-                        // Eco al emisor para sincronizar su chat al instante
                         out.println("MENSAJE_ENVIADO|" + emisor + "|" + receptor + "|" + tipoStr + "|" + contenido);
                     }
                     break;
 
                 case "NOTIF_FOLLOW":
-                    // NOTIF_FOLLOW|<emisor>|<receptor>
                     if (tokens.length >= 3) {
                         String emisor = tokens[1];
                         String receptor = tokens[2];

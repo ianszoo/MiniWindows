@@ -34,7 +34,6 @@ public class InstaClientSocket {
             out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF-8"), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
 
-            // Handshake inicial
             out.println("CONNECT|" +username);
             conectado = true;
 
@@ -69,7 +68,6 @@ public class InstaClientSocket {
         String evento = partes[0];
         if (listener != null) {
             if (evento.equals("NUEVO_MENSAJE") || evento.equals("MENSAJE_ENVIADO")) {
-                // EVENTO|<emisor>|<receptor>|<tipo>|<contenido>
                 String emisor = partes[1];
                 String receptor = partes[2];
                 boolean esSticker = partes[3].equals("STICKER");

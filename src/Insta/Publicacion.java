@@ -20,7 +20,7 @@ public class Publicacion implements Serializable {
     private String id;
     private String autor;
     private Date fecha;
-    private String contenido; // Máximo 220 caracteres
+    private String contenido; 
     private String rutaImagen;
     private String carpetaPersonal;
     private String sticker;
@@ -58,15 +58,37 @@ public class Publicacion implements Serializable {
         }
     }
 
-    public String getId() { return id; }
-    public String getAutor() { return autor; }
-    public Date getFecha() { return fecha; }
-    public String getContenido() { return contenido; }
-    public String getRutaImagen() { return rutaImagen; }
-    public String getCarpetaPersonal() { return carpetaPersonal; }
-    public String getSticker() { return sticker; }
-    public boolean isEsHistoria() { return esHistoria; }
-    public AspectRatio getFormatoAspecto() { return formatoAspecto; }
-    public Lista<String> getHashtags() { return hashtags; }
-    public Lista<String> getMenciones() { return menciones; }
+    public String getId() {
+        return id; 
+    }
+    public String getAutor() {
+        return autor; 
+    }
+    public Date getFecha() {
+        return fecha; 
+    }
+    public String getContenido() {
+        return contenido; 
+    }
+    public String getRutaImagen() {
+        return rutaImagen; 
+    }
+    public String getCarpetaPersonal() {
+        return carpetaPersonal; 
+    }
+    public String getSticker() {
+        return sticker; 
+    }
+    public boolean isEsHistoria() {
+        return esHistoria; 
+    }
+    public AspectRatio getFormatoAspecto() {
+        return formatoAspecto; 
+    }
+    public Lista<String> getHashtags() {
+        return hashtags; 
+    }
+    public Lista<String> getMenciones() {
+        return menciones; 
+    }
 }

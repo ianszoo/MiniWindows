@@ -19,7 +19,7 @@ public class MensajeInbox implements Serializable {
     private String emisor;
     private String receptor;
     private Date fecha;
-    private String texto; // Máximo 300 caracteres
+    private String texto; 
     private Tipo tipo;
     private boolean leido;
 
@@ -32,11 +32,25 @@ public class MensajeInbox implements Serializable {
         this.leido = false;
     }
 
-    public String getEmisor() { return emisor; }
-    public String getReceptor() { return receptor; }
-    public Date getFecha() { return fecha; }
-    public String getTexto() { return texto; }
-    public Tipo getTipo() { return tipo; }
-    public boolean isLeido() { return leido; }
-    public void setLeido(boolean leido) { this.leido = leido; }
+    public String getEmisor() {
+        return emisor; 
+    }
+    public String getReceptor() {
+        return receptor; 
+    }
+    public Date getFecha() {
+        return fecha; 
+    }
+    public String getTexto() {
+        return texto; 
+    }
+    public Tipo getTipo() {
+        return tipo; 
+    }
+    public boolean isLeido() {
+        return leido; 
+    }
+    public void setLeido(boolean leido) {
+        this.leido = leido; 
+    }
 }

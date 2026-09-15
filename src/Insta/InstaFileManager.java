@@ -237,7 +237,6 @@ public class InstaFileManager {
         }
     }
 
-    // --- INBOX CON CONTROL DE MENSAJES LEÍDOS ---
     public static synchronized void enviarMensaje(String emisor, String receptor, String texto, MensajeInbox.Tipo tipo) {
         MensajeInbox msg = new MensajeInbox(emisor, receptor, texto, tipo);
         File fEmisor = new File(RUTA_INSTA + "/" + emisor + "/inbox.ins");
