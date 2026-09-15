@@ -43,7 +43,7 @@ public class MiniWindowsDesktop extends JFrame {
     private Image backgroundImage;
     private JPanel startMenu;
     private boolean startMenuVisible = false;
-    private final Usuario usuarioActual;
+    private Usuario usuarioActual;
 
     // Registro de Ventanas Abiertas
     private final Map<String, JInternalFrame> ventanasAbiertas = new HashMap<>();
@@ -62,7 +62,7 @@ public class MiniWindowsDesktop extends JFrame {
 
     public MiniWindowsDesktop(Usuario usuario) {
         this.usuarioActual = usuario != null ? usuario : new Usuario("admin", "Admin2026!", true);
-        setTitle("Mini-Windows OS - Sesión: " + usuarioActual.getUsername() + (usuarioActual.isEsAdmin() ? " (Administrador)" : ""));
+        actualizarTituloVentana();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setLayout(new BorderLayout());
@@ -95,9 +95,42 @@ public class MiniWindowsDesktop extends JFrame {
 
         add(desktopPane, BorderLayout.CENTER);
 
+        refrescarEscritorioCompleto();
+        crearBarraDeTareas();
+    }
+
+    private void actualizarTituloVentana() {
+        setTitle("Mini-Windows OS - Sesión: " + usuarioActual.getUsername() + (usuarioActual.isEsAdmin() ? " (Administrador)" : " (Usuario Estándar)"));
+    }
+
+    // Cambia de cuenta en caliente sin salir de Mini-Windows
+    public void cambiarUsuarioEnCaliente(Usuario nuevoUsuario) {
+        motorAudio.detener();
+        // Cerrar todas las ventanas abiertas de la cuenta anterior
+        for (JInternalFrame f : desktopPane.getAllFrames()) {
+            f.dispose();
+        }
+        ventanasAbiertas.clear();
+        archivoPortapapeles = null;
+
+        this.usuarioActual = nuevoUsuario;
+        actualizarTituloVentana();
+
+        if (startMenuVisible) {
+            toggleStartMenu();
+        }
+
+        refrescarEscritorioCompleto();
+        JOptionPane.showMessageDialog(this, "Sesión cambiada a @" + nuevoUsuario.getUsername() + "\nDirectorio activo: Z:\\" + nuevoUsuario.getUsername(), "Cambio de Cuenta", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void refrescarEscritorioCompleto() {
+        // Limpiar iconos previos
+        desktopPane.removeAll();
         crearIconosEscritorio();
         crearMenuInicio();
-        crearBarraDeTareas();
+        desktopPane.revalidate();
+        desktopPane.repaint();
     }
 
     public static ImageIcon cargarIcono(String nombreBase, int ancho, int alto) {
@@ -282,13 +315,13 @@ public class MiniWindowsDesktop extends JFrame {
         startMenu.setOpaque(false);
         startMenu.setLayout(new BorderLayout(10, 10));
         startMenu.setBorder(new EmptyBorder(15, 15, 15, 15));
-        startMenu.setSize(400, 460);
+        startMenu.setSize(400, 480);
         startMenu.setVisible(false);
 
         JPanel grid = new JPanel(new GridLayout(1, 2, 10, 0));
         grid.setOpaque(false);
 
-        JPanel colLeft = new JPanel(new GridLayout(9, 1, 2, 2));
+        JPanel colLeft = new JPanel(new GridLayout(10, 1, 2, 2));
         colLeft.setOpaque(false);
 
         colLeft.add(crearBotonMenu(null, usuarioActual.getUsername() + (usuarioActual.isEsAdmin() ? " (Admin)" : ""), null, true));
@@ -301,7 +334,8 @@ public class MiniWindowsDesktop extends JFrame {
         if (usuarioActual.isEsAdmin()) {
             colLeft.add(crearBotonMenu(null, "Cuentas de Usuario", () -> abrirCuentasUsuario(), false));
         }
-        colLeft.add(crearBotonMenu(null, "Cerrar Sesión", () -> cerrarSesion(), false));
+        colLeft.add(crearBotonMenu(null, "Cambiar Cuenta", () -> solicitarCambioDeCuenta(), false));
+        colLeft.add(crearBotonMenu(null, "Cerrar Sesión (Admin)", () -> cerrarSesion(), false));
 
         JPanel colRight = new JPanel(new GridLayout(8, 1, 2, 2));
         colRight.setOpaque(false);
@@ -460,15 +494,55 @@ public class MiniWindowsDesktop extends JFrame {
         return btn;
     }
 
+    // Cerrar sesión siempre devuelve a la pantalla de Login de Administrador
     private void cerrarSesion() {
         motorAudio.detener();
         dispose();
         SwingUtilities.invokeLater(() -> new WindowsLoginFrame().setVisible(true));
     }
 
+    private void solicitarCambioDeCuenta() {
+        try {
+            Lista<Usuario> lista = SistemadeArchivos.cargarUsuarios();
+            String[] usuarios = new String[lista.getSize()];
+            for (int i = 0; i < lista.getSize(); i++) {
+                usuarios[i] = lista.obtener(i).getUsername();
+            }
+
+            String sel = (String) JOptionPane.showInputDialog(this, "Selecciona la cuenta a la que deseas ingresar:", "Cambiar de Cuenta", JOptionPane.QUESTION_MESSAGE, null, usuarios, usuarios[0]);
+            if (sel != null) {
+                pedirPasswordEIngresar(sel);
+            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error al obtener usuarios: " + ex.getMessage());
+        }
+    }
+
+    private void pedirPasswordEIngresar(String username) {
+        JPasswordField pf = new JPasswordField();
+        int ok = JOptionPane.showConfirmDialog(this, pf, "Ingresa la contraseña para @" + username + ":", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (ok == JOptionPane.OK_OPTION) {
+            String pss = new String(pf.getPassword());
+            try {
+                Usuario u = SistemadeArchivos.autenticar(username, pss);
+                if (u != null) {
+                    if (!u.isActivo()) {
+                        JOptionPane.showMessageDialog(this, "La cuenta @" + username + " se encuentra desactivada.", "Cuenta Inactiva", JOptionPane.WARNING_MESSAGE);
+                        return;
+                    }
+                    cambiarUsuarioEnCaliente(u);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Contraseña incorrecta para @" + username, "Acceso Denegado", JOptionPane.ERROR_MESSAGE);
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error al autenticar: " + ex.getMessage());
+            }
+        }
+    }
+
     // ENRUTADORES DE APLICACIONES
     private void abrirExplorador(File carpetaInicial) { 
-        gestionarVentana("EXPLORADOR", "Explorador de archivos", crearExploradorReal(carpetaInicial), 940, 610, false); 
+        gestionarVentana("EXPLORADOR", "Explorador de archivos (" + usuarioActual.getUsername() + ")", crearExploradorReal(carpetaInicial), 940, 610, false); 
     }
     private void abrirEditor(File archivoParaAbrir) { 
         gestionarVentana("EDITOR", "Bloc de Notas - Editor con Formato", crearEditorReal(archivoParaAbrir), 860, 560, true); 
@@ -477,13 +551,12 @@ public class MiniWindowsDesktop extends JFrame {
         gestionarVentana("VISOR", "Visor de Imágenes", crearVisorReal(fotoInicial), 880, 600, true); 
     }
     private void abrirCMD() { 
-        gestionarVentana("CMD", "Símbolo del Sistema (CMD)", crearCmdReal(), 720, 440, true); 
+        gestionarVentana("CMD", "Símbolo del Sistema (CMD) - " + usuarioActual.getUsername(), crearCmdReal(), 720, 440, true); 
     }
     private void abrirReproductor(File cancionParaTocar) { 
         gestionarVentana("REPRODUCTOR", "Media Player", crearReproductorReal(cancionParaTocar), 960, 600, true); 
     }
     
-    // PERMITE ABRIR MÚLTIPLES INSTANCIAS DE INSTA+ (DOBLE CELULAR)
     private void abrirInsta() { 
         String instanciaId = "INSTA_" + System.currentTimeMillis();
         gestionarVentana(instanciaId, "INSTA+ - Red Social Móvil (" + usuarioActual.getUsername() + ")", new InstaPanel(usuarioActual), 460, 750, true); 
@@ -494,7 +567,7 @@ public class MiniWindowsDesktop extends JFrame {
             JOptionPane.showMessageDialog(this, "Acceso denegado: Solo el Administrador puede gestionar las cuentas.", "Seguridad", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        gestionarVentana("CUENTAS_USUARIOS", "Cuentas de usuario", crearPanelCuentasUsuario(), 820, 480, false);
+        gestionarVentana("CUENTAS_USUARIOS", "Cuentas de usuario", crearPanelCuentasUsuario(), 880, 480, false);
     }
 
     private JButton crearBotonPersonalizado(String texto, Color bgBase, Color bgHover) {
@@ -542,16 +615,24 @@ public class MiniWindowsDesktop extends JFrame {
     }
 
     // =========================================================================
-    // PANEL "CUENTAS DE USUARIO"
+    // PANEL "CUENTAS DE USUARIO" (CON BOTÓN "INGRESAR A CUENTA")
     // =========================================================================
     private JPanel crearPanelCuentasUsuario() {
         JPanel p = new JPanel(new BorderLayout(0, 8));
         p.setBackground(Color.WHITE);
         p.setBorder(new EmptyBorder(10, 15, 10, 15));
 
-        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         toolbar.setBackground(new Color(248, 249, 251));
         toolbar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(225, 230, 235)));
+
+        JButton btnIngresar = new JButton("▶ Ingresar a cuenta");
+        btnIngresar.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnIngresar.setBackground(new Color(219, 234, 254));
+        btnIngresar.setForeground(ACCENT_BLUE);
+        btnIngresar.setFocusPainted(false);
+        btnIngresar.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        toolbar.add(btnIngresar);
 
         JButton btnNuevo = new JButton("Nuevo usuario");
         JButton btnRol = new JButton("Cambiar rol");
@@ -620,6 +701,30 @@ public class MiniWindowsDesktop extends JFrame {
         };
         recargarTabla.run();
 
+        // Ingresar a la cuenta seleccionada directamente desde la tabla
+        btnIngresar.addActionListener(e -> {
+            int row = tableUsuarios.getSelectedRow();
+            if (row == -1) {
+                JOptionPane.showMessageDialog(this, "Selecciona un usuario de la tabla para ingresar a su cuenta.");
+                return;
+            }
+            String usr = (String) modelUsuarios.getValueAt(row, 0);
+            pedirPasswordEIngresar(usr);
+        });
+
+        tableUsuarios.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int row = tableUsuarios.getSelectedRow();
+                    if (row != -1) {
+                        String usr = (String) modelUsuarios.getValueAt(row, 0);
+                        pedirPasswordEIngresar(usr);
+                    }
+                }
+            }
+        });
+
         btnNuevo.addActionListener(e -> {
             JDialog dlg = new JDialog(this, "Nuevo usuario", true);
             dlg.setSize(380, 360);
@@ -678,7 +783,7 @@ public class MiniWindowsDesktop extends JFrame {
 
                     dlg.dispose();
                     recargarTabla.run();
-                    JOptionPane.showMessageDialog(this, "Usuario '" + u + "' creado exitosamente.");
+                    JOptionPane.showMessageDialog(this, "Usuario '" + u + "' creado exitosamente. Puedes seleccionarlo y dar clic en 'Ingresar a cuenta'.");
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(dlg, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 }
@@ -998,7 +1103,6 @@ public class MiniWindowsDesktop extends JFrame {
         };
         cargarContenido.run();
 
-        // EJECUCIÓN OBLIGATORIA DEL ORGANIZADOR EN HILO APARTE (THREADS)
         btnOrganizar.addActionListener(e -> {
             File carpetaAOrganizar = carpetaActual[0];
             btnOrganizar.setEnabled(false);
@@ -1325,7 +1429,6 @@ public class MiniWindowsDesktop extends JFrame {
         }
     }
 
-    // Clasificación de archivos para la función "Organizar"
     private void organizarArchivos(File carpeta) {
         File imgDir = new File(carpeta, "Mis Imágenes");
         File docDir = new File(carpeta, "Mis Documentos");
@@ -2068,7 +2171,7 @@ public class MiniWindowsDesktop extends JFrame {
                         JOptionPane.showMessageDialog(this, "Error al importar imagen: " + ex.getMessage());
                     }
                 } else {
-                    JOptionPane.showMessageDialog(this, "Por favor seleccione una imagen válida (.png, .jpg, .jpeg)");
+                    JOptionPane.showMessageDialog(this, "Por favor seleccione una imagen válida (.png o .jpg)");
                 }
             }
         });
