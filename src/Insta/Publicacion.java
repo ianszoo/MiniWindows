@@ -5,12 +5,14 @@
  */
 package Insta;
 
+import java.io.File;
 import java.io.Serializable;
+import java.nio.file.Files;
 import java.util.Date;
 import Windows.Lista;
 
 /**
- * @author David Suazo Palao
+ * @author David Suazo Palao & Ian Suazo Palao
  */
 public class Publicacion implements Serializable {
     private static final long serialVersionUID = 1L;
@@ -22,6 +24,7 @@ public class Publicacion implements Serializable {
     private Date fecha;
     private String contenido; 
     private String rutaImagen;
+    private byte[] imagenBytes; // Guarda los bytes reales de la imagen para portabilidad total
     private String carpetaPersonal;
     private String sticker;
     private boolean esHistoria;
@@ -41,6 +44,17 @@ public class Publicacion implements Serializable {
         this.fecha = new Date();
         this.hashtags = new Lista<>();
         this.menciones = new Lista<>();
+
+        // Cargar los bytes binarios de la imagen para que viaje portable con el objeto serializado
+        if (rutaImagen != null && !rutaImagen.trim().isEmpty()) {
+            try {
+                File f = new File(rutaImagen);
+                if (f.exists()) {
+                    this.imagenBytes = Files.readAllBytes(f.toPath());
+                }
+            } catch (Exception ignored) {}
+        }
+
         extraerTagsYMenciones();
     }
 
@@ -72,6 +86,12 @@ public class Publicacion implements Serializable {
     }
     public String getRutaImagen() {
         return rutaImagen; 
+    }
+    public byte[] getImagenBytes() {
+        return imagenBytes;
+    }
+    public void setImagenBytes(byte[] imagenBytes) {
+        this.imagenBytes = imagenBytes;
     }
     public String getCarpetaPersonal() {
         return carpetaPersonal; 

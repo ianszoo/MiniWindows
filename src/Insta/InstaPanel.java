@@ -454,8 +454,8 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
                 new EmptyBorder(10, 12, 12, 12)
         ));
 
-        // Resuelve la imagen buscando en la ruta directa, en la carpeta del autor o del proyecto
-        File imgArchivo = InstaFileManager.resolverImagenPost(p.getAutor(), p.getRutaImagen());
+        // Resuelve y/o restaura la imagen portablemente
+        File imgArchivo = InstaFileManager.resolverImagenPost(p);
 
         int cardW = 390;
         int cardH = (imgArchivo != null) ? 430 : 210;
@@ -499,7 +499,7 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         });
         card.add(header, BorderLayout.NORTH);
 
-        // Muestra la imagen escalada adecuadamente si existe
+        // Muestra la imagen escalada adecuadamente
         if (imgArchivo != null) {
             ImageIcon icon = new ImageIcon(imgArchivo.getAbsolutePath());
             Image scaled = icon.getImage().getScaledInstance(366, 210, Image.SCALE_SMOOTH);
@@ -966,7 +966,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         rightTextPanel.add(lblEstado);
         topInfoRow.add(rightTextPanel, BorderLayout.CENTER);
 
-        // Botón DM en la esquina superior derecha
         if (!esPropio) {
             JButton btnTopDM = new JButton("DM") {
                 @Override
@@ -1113,7 +1112,7 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
                 gItem.setPreferredSize(new Dimension(115, 115));
                 gItem.setBorder(BorderFactory.createLineBorder(BORDER_LINE));
 
-                File imgArchivo = InstaFileManager.resolverImagenPost(pub.getAutor(), pub.getRutaImagen());
+                File imgArchivo = InstaFileManager.resolverImagenPost(pub);
                 if (imgArchivo != null) {
                     ImageIcon ic = new ImageIcon(new ImageIcon(imgArchivo.getAbsolutePath()).getImage().getScaledInstance(115, 115, Image.SCALE_SMOOTH));
                     gItem.add(new JLabel(ic), BorderLayout.CENTER);
@@ -2221,8 +2220,8 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
                 boolean fotoPintada = false;
 
                 if (u != null && u.getFotoPerfil() != null) {
-                    File f = new File(u.getFotoPerfil());
-                    if (f.exists()) {
+                    File f = InstaFileManager.resolverImagenPost(username, u.getFotoPerfil(), null);
+                    if (f != null && f.exists()) {
                         try {
                             ImageIcon icon = new ImageIcon(f.getAbsolutePath());
                             Image img = icon.getImage();
