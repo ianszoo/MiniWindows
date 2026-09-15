@@ -23,7 +23,6 @@ public class InstaFileManager {
         File globStickers = new File(RUTA_STICKERS_GLOBALES);
         if (!globStickers.exists()) globStickers.mkdirs();
 
-        // Garantizar físicamente los 5 stickers iniciales por defecto en stickers_globales
         asegurarStickersPorDefecto();
 
         File userIns = new File(ARCHIVO_USERS_INS);
@@ -50,15 +49,14 @@ public class InstaFileManager {
         }
     }
 
-    // Crea gráficamente los 5 stickers base en stickers_globales si no existen
     private static void asegurarStickersPorDefecto() {
         String[] nombres = {"Feliz", "Triste", "Corazon", "Risa", "Aplauso"};
         Color[] colores = {
-            new Color(250, 204, 21),  // Feliz (Amarillo)
-            new Color(96, 165, 250),  // Triste (Azul)
-            new Color(244, 63, 94),   // Corazón (Rojo/Rosa)
-            new Color(251, 146, 60),  // Risa (Naranja)
-            new Color(74, 222, 128)   // Aplauso (Verde)
+            new Color(250, 204, 21),
+            new Color(96, 165, 250),
+            new Color(244, 63, 94),
+            new Color(251, 146, 60),
+            new Color(74, 222, 128)
         };
         String[] simbolos = {"^ ‿ ^", "T _ T", "♥", "XD", "👏"};
 
@@ -70,11 +68,9 @@ public class InstaFileManager {
                     Graphics2D g2 = img.createGraphics();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-                    // Círculo de fondo
                     g2.setColor(colores[i]);
                     g2.fillOval(5, 5, 110, 110);
 
-                    // Símbolo o texto
                     g2.setColor(Color.WHITE);
                     g2.setFont(new Font("Segoe UI", Font.BOLD, 30));
                     FontMetrics fm = g2.getFontMetrics();
@@ -112,7 +108,6 @@ public class InstaFileManager {
             guardarListaGenerica(new File(uDir, "insta.ins"), new Lista<Publicacion>());
             guardarListaGenerica(new File(uDir, "inbox.ins"), new Lista<MensajeInbox>());
 
-            // Inicializar stickers.ins del usuario con los 5 stickers iniciales obligatorios
             Lista<Stickers> stks = new Lista<>();
             stks.agregar(new Stickers("Feliz", new File(RUTA_STICKERS_GLOBALES, "Feliz.png").getAbsolutePath(), true));
             stks.agregar(new Stickers("Triste", new File(RUTA_STICKERS_GLOBALES, "Triste.png").getAbsolutePath(), true));
@@ -123,7 +118,6 @@ public class InstaFileManager {
         }
     }
 
-    // --- PERSISTENCIA BINARIA (.INS) ---
     public static synchronized <T> void guardarListaGenerica(File file, Lista<T> lista) {
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file))) {
             oos.writeObject(lista);
@@ -142,7 +136,6 @@ public class InstaFileManager {
         }
     }
 
-    // --- USUARIOS ---
     public static synchronized Lista<Usuario> cargarUsuariosInsta() {
         return cargarListaGenerica(new File(ARCHIVO_USERS_INS));
     }
@@ -203,7 +196,6 @@ public class InstaFileManager {
         return true;
     }
 
-    // --- PUBLICACIONES ---
     public static Lista<Publicacion> cargarPublicaciones(String username) {
         return cargarListaGenerica(new File(RUTA_INSTA + "/" + username + "/insta.ins"));
     }
@@ -212,7 +204,6 @@ public class InstaFileManager {
         guardarListaGenerica(new File(RUTA_INSTA + "/" + username + "/insta.ins"), posts);
     }
 
-    // --- SEGUIMIENTO ---
     public static Lista<String> cargarSeguidos(String username) {
         return cargarListaGenerica(new File(RUTA_INSTA + "/" + username + "/following.ins"));
     }
@@ -246,7 +237,7 @@ public class InstaFileManager {
         }
     }
 
-    // --- INBOX ---
+    // --- INBOX CON CONTROL DE MENSAJES LEÍDOS ---
     public static synchronized void enviarMensaje(String emisor, String receptor, String texto, MensajeInbox.Tipo tipo) {
         MensajeInbox msg = new MensajeInbox(emisor, receptor, texto, tipo);
         File fEmisor = new File(RUTA_INSTA + "/" + emisor + "/inbox.ins");
@@ -260,7 +251,57 @@ public class InstaFileManager {
         guardarListaGenerica(fReceptor, inboxReceptor);
     }
 
+    public static synchronized void marcarConversacionComoLeida(String receptor, String emisor) {
+        File fReceptor = new File(RUTA_INSTA + "/" + receptor + "/inbox.ins");
+        Lista<MensajeInbox> inboxReceptor = cargarListaGenerica(fReceptor);
+        Nodo<MensajeInbox> nr = inboxReceptor.getHead();
+        boolean modificadoReceptor = false;
+        while (nr != null) {
+            MensajeInbox m = nr.getDato();
+            if (m.getEmisor().equalsIgnoreCase(emisor) && m.getReceptor().equalsIgnoreCase(receptor) && !m.isLeido()) {
+                m.setLeido(true);
+                modificadoReceptor = true;
+            }
+            nr = nr.getSiguiente();
+        }
+        if (modificadoReceptor) {
+            guardarListaGenerica(fReceptor, inboxReceptor);
+        }
+
+        File fEmisor = new File(RUTA_INSTA + "/" + emisor + "/inbox.ins");
+        Lista<MensajeInbox> inboxEmisor = cargarListaGenerica(fEmisor);
+        Nodo<MensajeInbox> ne = inboxEmisor.getHead();
+        boolean modificadoEmisor = false;
+        while (ne != null) {
+            MensajeInbox m = ne.getDato();
+            if (m.getEmisor().equalsIgnoreCase(emisor) && m.getReceptor().equalsIgnoreCase(receptor) && !m.isLeido()) {
+                m.setLeido(true);
+                modificadoEmisor = true;
+            }
+            ne = ne.getSiguiente();
+        }
+        if (modificadoEmisor) {
+            guardarListaGenerica(fEmisor, inboxEmisor);
+        }
+    }
+
+    public static synchronized int contarMensajesNoLeidos(String usuarioActual, String remitente) {
+        File f = new File(RUTA_INSTA + "/" + usuarioActual + "/inbox.ins");
+        Lista<MensajeInbox> todos = cargarListaGenerica(f);
+        Nodo<MensajeInbox> n = todos.getHead();
+        int noLeidos = 0;
+        while (n != null) {
+            MensajeInbox m = n.getDato();
+            if (m.getEmisor().equalsIgnoreCase(remitente) && m.getReceptor().equalsIgnoreCase(usuarioActual) && !m.isLeido()) {
+                noLeidos++;
+            }
+            n = n.getSiguiente();
+        }
+        return noLeidos;
+    }
+
     public static synchronized Lista<MensajeInbox> obtenerConversacion(String u1, String u2) {
+        marcarConversacionComoLeida(u1, u2);
         File f = new File(RUTA_INSTA + "/" + u1 + "/inbox.ins");
         Lista<MensajeInbox> todos = cargarListaGenerica(f);
         Lista<MensajeInbox> chat = new Lista<>();
@@ -271,11 +312,9 @@ public class InstaFileManager {
             if ((m.getEmisor().equalsIgnoreCase(u1) && m.getReceptor().equalsIgnoreCase(u2)) ||
                 (m.getEmisor().equalsIgnoreCase(u2) && m.getReceptor().equalsIgnoreCase(u1))) {
                 chat.agregar(m);
-                if (m.getReceptor().equalsIgnoreCase(u1)) m.setLeido(true);
             }
             n = n.getSiguiente();
         }
-        guardarListaGenerica(f, todos);
         return chat;
     }
 
@@ -295,7 +334,6 @@ public class InstaFileManager {
         guardarListaGenerica(f, filtrados);
     }
 
-    // --- IMPORTAR STICKER PERSONAL (.PNG O .JPG) Y GUARDARLO PERMANENTEMENTE ---
     public static synchronized boolean agregarStickerPersonal(String username, File archivoOrigen) {
         if (archivoOrigen == null || !archivoOrigen.exists()) return false;
 
@@ -326,21 +364,18 @@ public class InstaFileManager {
         return true;
     }
 
-    // --- CARGAR ÚNICAMENTE LOS 5 POR DEFECTO + PERSONALES IMPORTADOS ---
     @SuppressWarnings("rawtypes")
     public static synchronized Lista<Stickers> cargarStickers(String username) {
         asegurarStickersPorDefecto();
         File fStk = new File(RUTA_INSTA + "/" + username + "/stickers.ins");
         Lista<Stickers> resultado = new Lista<>();
 
-        // 1. Siempre incluir los 5 stickers iniciales obligatorios por defecto (Sección 4.12)
         String[] baseStickers = {"Feliz", "Triste", "Corazon", "Risa", "Aplauso"};
         for (String b : baseStickers) {
             File fImg = new File(RUTA_STICKERS_GLOBALES, b + ".png");
             resultado.agregar(new Stickers(b, fImg.exists() ? fImg.getAbsolutePath() : null, true));
         }
 
-        // 2. Leer stickers personales del archivo binario del usuario
         if (fStk.exists()) {
             try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fStk))) {
                 Object obj = ois.readObject();
@@ -350,7 +385,6 @@ public class InstaFileManager {
                         Object elemento = enDisco.obtener(i);
                         if (elemento instanceof Stickers) {
                             Stickers s = (Stickers) elemento;
-                            // Solo agregamos stickers personales que sigan existiendo en disco y no estén repetidos
                             if (!s.isEsGlobal() && s.getRutaArchivo() != null && new File(s.getRutaArchivo()).exists()) {
                                 if (!resultado.contiene(s)) {
                                     resultado.agregar(s);
@@ -362,7 +396,6 @@ public class InstaFileManager {
             } catch (Exception ignored) {}
         }
 
-        // 3. Revisar también directamente la subcarpeta física /stickers_personales del usuario
         File dirPers = new File(RUTA_INSTA + "/" + username + "/stickers_personales");
         if (dirPers.exists() && dirPers.isDirectory()) {
             File[] files = dirPers.listFiles((d, name) -> {
@@ -379,7 +412,6 @@ public class InstaFileManager {
             }
         }
 
-        // Guardar la lista actualizada en el archivo binario del usuario
         guardarListaGenerica(fStk, resultado);
         return resultado;
     }

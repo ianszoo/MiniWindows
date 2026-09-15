@@ -701,7 +701,6 @@ public class MiniWindowsDesktop extends JFrame {
         };
         recargarTabla.run();
 
-        // Ingresar a la cuenta seleccionada directamente desde la tabla
         btnIngresar.addActionListener(e -> {
             int row = tableUsuarios.getSelectedRow();
             if (row == -1) {
@@ -725,18 +724,20 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
+        // NUEVO USUARIO CON CONFIRMAR CONTRASEÑA
         btnNuevo.addActionListener(e -> {
             JDialog dlg = new JDialog(this, "Nuevo usuario", true);
-            dlg.setSize(380, 360);
+            dlg.setSize(400, 410);
             dlg.setLocationRelativeTo(this);
             dlg.setLayout(new BorderLayout());
 
-            JPanel form = new JPanel(new GridLayout(6, 2, 8, 10));
+            JPanel form = new JPanel(new GridLayout(7, 2, 8, 10));
             form.setBorder(new EmptyBorder(15, 20, 15, 20));
 
             JTextField txtNom = new JTextField();
             JTextField txtUsr = new JTextField();
             JPasswordField txtPwd = new JPasswordField();
+            JPasswordField txtPwdConfirm = new JPasswordField();
             JSpinner spinEdad = new JSpinner(new SpinnerNumberModel(18, 1, 120, 1));
             JComboBox<String> cbGen = new JComboBox<>(new String[]{"M", "F"});
             JComboBox<String> cbRol = new JComboBox<>(new String[]{"Estándar", "Administrador"});
@@ -744,6 +745,7 @@ public class MiniWindowsDesktop extends JFrame {
             form.add(new JLabel("Nombre completo:")); form.add(txtNom);
             form.add(new JLabel("Username:")); form.add(txtUsr);
             form.add(new JLabel("Contraseña:")); form.add(txtPwd);
+            form.add(new JLabel("Confirmar contraseña:")); form.add(txtPwdConfirm);
             form.add(new JLabel("Edad:")); form.add(spinEdad);
             form.add(new JLabel("Género:")); form.add(cbGen);
             form.add(new JLabel("Rol:")); form.add(cbRol);
@@ -759,10 +761,16 @@ public class MiniWindowsDesktop extends JFrame {
                 String u = txtUsr.getText().trim();
                 String nom = txtNom.getText().trim();
                 String pss = new String(txtPwd.getPassword());
+                String pssConf = new String(txtPwdConfirm.getPassword());
                 boolean adm = cbRol.getSelectedItem().equals("Administrador");
 
-                if (u.isEmpty() || nom.isEmpty() || pss.isEmpty()) {
+                if (u.isEmpty() || nom.isEmpty() || pss.isEmpty() || pssConf.isEmpty()) {
                     JOptionPane.showMessageDialog(dlg, "Debe completar todos los campos.", "Atención", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+
+                if (!pss.equals(pssConf)) {
+                    JOptionPane.showMessageDialog(dlg, "Las contraseñas no coinciden.", "Error de Contraseña", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
 
@@ -842,19 +850,41 @@ public class MiniWindowsDesktop extends JFrame {
             }
         });
 
+        // RESTABLECER CONTRASEÑA CON CONFIRMAR CONTRASEÑA
         btnPass.addActionListener(e -> {
             int row = tableUsuarios.getSelectedRow();
             if (row != -1) {
                 String usr = (String) modelUsuarios.getValueAt(row, 0);
-                String nuevaPass = JOptionPane.showInputDialog(this, "Ingrese la nueva contraseña segura para '" + usr + "':");
-                if (nuevaPass != null && !nuevaPass.trim().isEmpty()) {
+                
+                JPanel passPanel = new JPanel(new GridLayout(2, 2, 6, 6));
+                JPasswordField pf1 = new JPasswordField();
+                JPasswordField pf2 = new JPasswordField();
+                passPanel.add(new JLabel("Nueva contraseña:"));
+                passPanel.add(pf1);
+                passPanel.add(new JLabel("Confirmar contraseña:"));
+                passPanel.add(pf2);
+
+                int resp = JOptionPane.showConfirmDialog(this, passPanel, "Restablecer contraseña para @" + usr, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+                if (resp == JOptionPane.OK_OPTION) {
+                    String p1 = new String(pf1.getPassword());
+                    String p2 = new String(pf2.getPassword());
+
+                    if (p1.isEmpty() || p2.isEmpty()) {
+                        JOptionPane.showMessageDialog(this, "Debe ingresar ambas contraseñas.", "Campos vacíos", JOptionPane.WARNING_MESSAGE);
+                        return;
+                    }
+                    if (!p1.equals(p2)) {
+                        JOptionPane.showMessageDialog(this, "Las contraseñas no coinciden.", "Error de Contraseña", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+
                     try {
-                        Password.validar(nuevaPass);
+                        Password.validar(p1);
                         Lista<Usuario> users = SistemadeArchivos.cargarUsuarios();
                         Nodo<Usuario> n = users.getHead();
                         while (n != null) {
                             if (n.getDato().getUsername().equalsIgnoreCase(usr)) {
-                                n.getDato().setPass(nuevaPass);
+                                n.getDato().setPass(p1);
                                 break;
                             }
                             n = n.getSiguiente();
