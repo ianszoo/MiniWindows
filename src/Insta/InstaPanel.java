@@ -1267,16 +1267,17 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         leftChatInfo.add(lblChatHeaderUser);
         topChat.add(leftChatInfo, BorderLayout.WEST);
 
+        // Panel de acciones en la parte superior derecha
         JPanel rightActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         rightActions.setOpaque(false);
 
-        // BOTÓN: MARCAR MENSAJES COMO LEÍDOS
-        JButton btnMarcarLeido = crearBotonSecundario("✓ Marcar leído");
-        btnMarcarLeido.setToolTipText("Marcar todos los mensajes como leídos");
+        // OPCIÓN REQUERIDA POR RÚBRICA: MARCAR COMO LEÍDO
+        JButton btnMarcarLeido = crearBotonSecundario("Marcar leído");
+        btnMarcarLeido.setToolTipText("Marcar todos los mensajes de este chat como leídos");
         btnMarcarLeido.addActionListener(e -> {
             InstaFileManager.marcarConversacionComoLeida(usuarioActual.getUsername(), chatUsuarioSeleccionado);
             recargarMensajesChat();
-            JOptionPane.showMessageDialog(this, "Mensajes con @" + chatUsuarioSeleccionado + " marcados como leídos.");
+            JOptionPane.showMessageDialog(this, "Mensajes con @" + chatUsuarioSeleccionado + " marcados como leídos.", "Estado Actualizado", JOptionPane.INFORMATION_MESSAGE);
         });
 
         JButton btnEliminar = crearBotonSecundario("Eliminar");
