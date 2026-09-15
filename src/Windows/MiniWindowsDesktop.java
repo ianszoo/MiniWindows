@@ -34,6 +34,11 @@ import javazoom.jl.player.Player;
  * @author David Suazo Palao & Ian Suazo Palao
  */
 public class MiniWindowsDesktop extends JFrame {
+
+    static {
+        System.setProperty("java.util.Arrays.useLegacyMergeSort", "true");
+    }
+
     private JDesktopPane desktopPane;
     private Image backgroundImage;
     private JPanel startMenu;
@@ -1152,7 +1157,7 @@ public class MiniWindowsDesktop extends JFrame {
         });
 
         btnImportar.addActionListener(e -> {
-            JFileChooser fc = new JFileChooser();
+            JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA));
             if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
                 File fSel = fc.getSelectedFile();
                 try {
@@ -1799,13 +1804,10 @@ public class MiniWindowsDesktop extends JFrame {
                             File raizSimulada = new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA);
                             File raizPersonal = new File(raizSimulada, usuarioActual.getUsername());
 
-                            // Validación de permisos estricta
                             boolean tienePermiso;
                             if (usuarioActual.isEsAdmin()) {
-                                // El Admin puede borrar cualquier subcarpeta de Z:\ (menos la raíz misma Z:\)
                                 tienePermiso = !aBorrar.getAbsolutePath().equals(raizSimulada.getAbsolutePath());
                             } else {
-                                // Usuario estándar: SOLO dentro de su propia carpeta Z:\<username> (sin borrar su raíz)
                                 tienePermiso = aBorrar.getAbsolutePath().startsWith(raizPersonal.getAbsolutePath()) 
                                         && !aBorrar.getAbsolutePath().equals(raizPersonal.getAbsolutePath());
                             }
@@ -2046,7 +2048,7 @@ public class MiniWindowsDesktop extends JFrame {
         recargarFotos.run();
 
         btnAgregarFoto.addActionListener(e -> {
-            JFileChooser fc = new JFileChooser();
+            JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA));
             if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
                 File sel = fc.getSelectedFile();
                 String n = sel.getName().toLowerCase();
@@ -2605,7 +2607,7 @@ public class MiniWindowsDesktop extends JFrame {
         JButton btnBuscarCaratula = crearBotonPersonalizado("Seleccionar Carátula (.jpg / .png)", new Color(45, 46, 52), new Color(65, 68, 78));
 
         btnBuscarCaratula.addActionListener(e -> {
-            JFileChooser fc = new JFileChooser();
+            JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA));
             if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
                 File img = fc.getSelectedFile();
                 String n = img.getName().toLowerCase();
@@ -2635,7 +2637,7 @@ public class MiniWindowsDesktop extends JFrame {
         JButton btnBuscarAudio = crearBotonPersonalizado("Elegir Archivo MP3 / WAV", new Color(45, 46, 52), new Color(65, 68, 78));
 
         btnBuscarAudio.addActionListener(e -> {
-            JFileChooser fc = new JFileChooser();
+            JFileChooser fc = new JFileChooser(new File(SistemadeArchivos.RUTA_RAIZ_SIMULADA));
             if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
                 File audio = fc.getSelectedFile();
                 String n = audio.getName().toLowerCase();
