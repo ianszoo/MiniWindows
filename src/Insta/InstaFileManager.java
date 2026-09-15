@@ -4,9 +4,12 @@ import Windows.Lista;
 import Windows.Nodo;
 import Windows.SistemadeArchivos;
 import Windows.Usuario;
+import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import javax.imageio.ImageIO;
 
 public class InstaFileManager {
     public static final String RUTA_INSTA = SistemadeArchivos.RUTA_RAIZ_SIMULADA + "/INSTA_RAIZ";
@@ -19,6 +22,9 @@ public class InstaFileManager {
 
         File globStickers = new File(RUTA_STICKERS_GLOBALES);
         if (!globStickers.exists()) globStickers.mkdirs();
+
+        // Garantizar físicamente los 5 stickers iniciales por defecto en stickers_globales
+        asegurarStickersPorDefecto();
 
         File userIns = new File(ARCHIVO_USERS_INS);
         if (!userIns.exists()) {
@@ -44,6 +50,45 @@ public class InstaFileManager {
         }
     }
 
+    // Crea gráficamente los 5 stickers base en stickers_globales si no existen
+    private static void asegurarStickersPorDefecto() {
+        String[] nombres = {"Feliz", "Triste", "Corazon", "Risa", "Aplauso"};
+        Color[] colores = {
+            new Color(250, 204, 21),  // Feliz (Amarillo)
+            new Color(96, 165, 250),  // Triste (Azul)
+            new Color(244, 63, 94),   // Corazón (Rojo/Rosa)
+            new Color(251, 146, 60),  // Risa (Naranja)
+            new Color(74, 222, 128)   // Aplauso (Verde)
+        };
+        String[] simbolos = {"^ ‿ ^", "T _ T", "♥", "XD", "👏"};
+
+        for (int i = 0; i < nombres.length; i++) {
+            File f = new File(RUTA_STICKERS_GLOBALES, nombres[i] + ".png");
+            if (!f.exists()) {
+                try {
+                    BufferedImage img = new BufferedImage(120, 120, BufferedImage.TYPE_INT_ARGB);
+                    Graphics2D g2 = img.createGraphics();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                    // Círculo de fondo
+                    g2.setColor(colores[i]);
+                    g2.fillOval(5, 5, 110, 110);
+
+                    // Símbolo o texto
+                    g2.setColor(Color.WHITE);
+                    g2.setFont(new Font("Segoe UI", Font.BOLD, 30));
+                    FontMetrics fm = g2.getFontMetrics();
+                    int tx = (120 - fm.stringWidth(simbolos[i])) / 2;
+                    int ty = (120 + fm.getAscent() - fm.getDescent()) / 2 - 2;
+                    g2.drawString(simbolos[i], tx, ty);
+
+                    g2.dispose();
+                    ImageIO.write(img, "png", f);
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
     private static void publicarDemo(String autor, String txt, String sticker, String carpeta, boolean esHistoria) {
         Publicacion p = new Publicacion(autor, txt, null, carpeta, sticker, esHistoria, Publicacion.AspectRatio.CUADRADA);
         Lista<Publicacion> posts = cargarPublicaciones(autor);
@@ -66,13 +111,14 @@ public class InstaFileManager {
             guardarListaGenerica(new File(uDir, "followers.ins"), new Lista<String>());
             guardarListaGenerica(new File(uDir, "insta.ins"), new Lista<Publicacion>());
             guardarListaGenerica(new File(uDir, "inbox.ins"), new Lista<MensajeInbox>());
-            
+
+            // Inicializar stickers.ins del usuario con los 5 stickers iniciales obligatorios
             Lista<Stickers> stks = new Lista<>();
-            stks.agregar(new Stickers("Feliz", null, true));
-            stks.agregar(new Stickers("Triste", null, true));
-            stks.agregar(new Stickers("Corazon", null, true));
-            stks.agregar(new Stickers("Risa", null, true));
-            stks.agregar(new Stickers("Aplauso", null, true));
+            stks.agregar(new Stickers("Feliz", new File(RUTA_STICKERS_GLOBALES, "Feliz.png").getAbsolutePath(), true));
+            stks.agregar(new Stickers("Triste", new File(RUTA_STICKERS_GLOBALES, "Triste.png").getAbsolutePath(), true));
+            stks.agregar(new Stickers("Corazon", new File(RUTA_STICKERS_GLOBALES, "Corazon.png").getAbsolutePath(), true));
+            stks.agregar(new Stickers("Risa", new File(RUTA_STICKERS_GLOBALES, "Risa.png").getAbsolutePath(), true));
+            stks.agregar(new Stickers("Aplauso", new File(RUTA_STICKERS_GLOBALES, "Aplauso.png").getAbsolutePath(), true));
             guardarListaGenerica(new File(uDir, "stickers.ins"), stks);
         }
     }
@@ -249,16 +295,15 @@ public class InstaFileManager {
         guardarListaGenerica(f, filtrados);
     }
 
+    // --- IMPORTAR STICKER PERSONAL (.PNG O .JPG) Y GUARDARLO PERMANENTEMENTE ---
     public static synchronized boolean agregarStickerPersonal(String username, File archivoOrigen) {
         if (archivoOrigen == null || !archivoOrigen.exists()) return false;
 
         String nombre = archivoOrigen.getName().toLowerCase();
-        // Validación obligatoria de formato .png o .jpg
         if (!nombre.endsWith(".png") && !nombre.endsWith(".jpg") && !nombre.endsWith(".jpeg")) {
             return false;
         }
 
-        // 1. Guardar físicamente en /stickers_personales
         File dirPersonal = new File(RUTA_INSTA + "/" + username + "/stickers_personales");
         if (!dirPersonal.exists()) dirPersonal.mkdirs();
 
@@ -270,9 +315,8 @@ public class InstaFileManager {
             return false;
         }
 
-        // 2. Registrar en stickers.ins del usuario
         File fStk = new File(RUTA_INSTA + "/" + username + "/stickers.ins");
-        Lista<Stickers> lista = cargarListaGenerica(fStk);
+        Lista<Stickers> lista = cargarStickers(username);
 
         Stickers nuevoStk = new Stickers(archivoOrigen.getName(), destino.getAbsolutePath(), false);
         if (!lista.contiene(nuevoStk)) {
@@ -282,47 +326,61 @@ public class InstaFileManager {
         return true;
     }
 
-    // --- CARGAR STICKERS DISPONIBLES (5 POR DEFECTO + GLOBALES + PERSONALES) ---
+    // --- CARGAR ÚNICAMENTE LOS 5 POR DEFECTO + PERSONALES IMPORTADOS ---
+    @SuppressWarnings("rawtypes")
     public static synchronized Lista<Stickers> cargarStickers(String username) {
+        asegurarStickersPorDefecto();
         File fStk = new File(RUTA_INSTA + "/" + username + "/stickers.ins");
-        Lista<Stickers> stickers = cargarListaGenerica(fStk);
+        Lista<Stickers> resultado = new Lista<>();
 
-        // 5 stickers iniciales por defecto según rúbrica 4.12
-        if (stickers.estaVacia()) {
-            stickers.agregar(new Stickers("Feliz", null, true));
-            stickers.agregar(new Stickers("Triste", null, true));
-            stickers.agregar(new Stickers("Corazón", null, true));
-            stickers.agregar(new Stickers("Risa", null, true));
-            stickers.agregar(new Stickers("Aplauso", null, true));
+        // 1. Siempre incluir los 5 stickers iniciales obligatorios por defecto (Sección 4.12)
+        String[] baseStickers = {"Feliz", "Triste", "Corazon", "Risa", "Aplauso"};
+        for (String b : baseStickers) {
+            File fImg = new File(RUTA_STICKERS_GLOBALES, b + ".png");
+            resultado.agregar(new Stickers(b, fImg.exists() ? fImg.getAbsolutePath() : null, true));
         }
 
-        // Escanear carpetas físicas de imágenes
-        File[] carpetas = {
-            new File(RUTA_STICKERS_GLOBALES),
-            new File(RUTA_INSTA + "/" + username + "/stickers_personales"),
-            new File("src/Insta/stickers"),
-            new File("stickers")
-        };
-
-        for (File dir : carpetas) {
-            if (dir.exists() && dir.isDirectory()) {
-                File[] archivos = dir.listFiles((d, name) -> {
-                    String n = name.toLowerCase();
-                    return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg");
-                });
-                if (archivos != null) {
-                    for (File f : archivos) {
-                        boolean esGlobal = dir.getAbsolutePath().contains("stickers_globales");
-                        Stickers stkObj = new Stickers(f.getName(), f.getAbsolutePath(), esGlobal);
-                        if (!stickers.contiene(stkObj)) {
-                            stickers.agregar(stkObj);
+        // 2. Leer stickers personales del archivo binario del usuario
+        if (fStk.exists()) {
+            try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fStk))) {
+                Object obj = ois.readObject();
+                if (obj instanceof Lista) {
+                    Lista enDisco = (Lista) obj;
+                    for (int i = 0; i < enDisco.getSize(); i++) {
+                        Object elemento = enDisco.obtener(i);
+                        if (elemento instanceof Stickers) {
+                            Stickers s = (Stickers) elemento;
+                            // Solo agregamos stickers personales que sigan existiendo en disco y no estén repetidos
+                            if (!s.isEsGlobal() && s.getRutaArchivo() != null && new File(s.getRutaArchivo()).exists()) {
+                                if (!resultado.contiene(s)) {
+                                    resultado.agregar(s);
+                                }
+                            }
                         }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // 3. Revisar también directamente la subcarpeta física /stickers_personales del usuario
+        File dirPers = new File(RUTA_INSTA + "/" + username + "/stickers_personales");
+        if (dirPers.exists() && dirPers.isDirectory()) {
+            File[] files = dirPers.listFiles((d, name) -> {
+                String n = name.toLowerCase();
+                return n.endsWith(".png") || n.endsWith(".jpg") || n.endsWith(".jpeg");
+            });
+            if (files != null) {
+                for (File f : files) {
+                    Stickers sp = new Stickers(f.getName(), f.getAbsolutePath(), false);
+                    if (!resultado.contiene(sp)) {
+                        resultado.agregar(sp);
                     }
                 }
             }
         }
 
-        guardarListaGenerica(fStk, stickers);
-        return stickers;
+        // Guardar la lista actualizada en el archivo binario del usuario
+        guardarListaGenerica(fStk, resultado);
+        return resultado;
     }
 }

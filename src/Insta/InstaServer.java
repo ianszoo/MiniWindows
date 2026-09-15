@@ -5,40 +5,60 @@
  */
 package Insta;
 
-import Windows.Lista;
-import Windows.Nodo;
 import java.io.*;
 import java.net.*;
 import java.util.concurrent.ConcurrentHashMap;
+
 /**
- *
- * @author Ian Suazo Palao
+ * Servidor Central TCP para INSTA+ con protección contra puertos en uso.
+ * @author Ian Suazo Palao & David Suazo Palao
  */
 public class InstaServer {
     public static final int PUERTO = 8888;
     private static final ConcurrentHashMap<String, PrintWriter> clientesConectados = new ConcurrentHashMap<>();
     private static ServerSocket serverSocket;
-    private static boolean activo = false;
+    private static volatile boolean activo = false;
 
     public static synchronized void iniciarServidor() {
         if (activo) return;
-        activo = true;
 
         Thread threadServidor = new Thread(() -> {
             try {
-                serverSocket = new ServerSocket(PUERTO);
-                System.out.println("[SERVIDOR INSTA+] Escuchando en puerto " + PUERTO);
+                // Crear socket con reuso de dirección activado
+                serverSocket = new ServerSocket();
+                serverSocket.setReuseAddress(true);
+                serverSocket.bind(new InetSocketAddress(PUERTO));
+                activo = true;
+                System.out.println("[SERVIDOR INSTA+] Escuchando activamente en puerto " + PUERTO);
 
-                while (activo) {
-                    Socket socketCliente = serverSocket.accept();
-                    new Thread(new ManejadorCliente(socketCliente)).start();
+                while (activo && !serverSocket.isClosed()) {
+                    try {
+                        Socket socketCliente = serverSocket.accept();
+                        new Thread(new ManejadorCliente(socketCliente)).start();
+                    } catch (SocketException se) {
+                        // Ocurre si el servidor se apaga intencionalmente
+                        break;
+                    }
                 }
+            } catch (BindException be) {
+                // El puerto ya está tomado por una instancia previa o activa del servidor
+                System.out.println("[SERVIDOR INSTA+] El puerto " + PUERTO + " ya está en uso. Conectando a servidor existente.");
+                activo = true;
             } catch (IOException e) {
-                if (activo) e.printStackTrace();
+                System.err.println("[SERVIDOR INSTA+] Error en el servidor: " + e.getMessage());
             }
         });
         threadServidor.setDaemon(true);
         threadServidor.start();
+    }
+
+    public static synchronized void detenerServidor() {
+        activo = false;
+        try {
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
+            }
+        } catch (IOException ignored) {}
     }
 
     private static class ManejadorCliente implements Runnable {
@@ -72,6 +92,7 @@ public class InstaServer {
 
         private void procesarComando(String comandoRaw) {
             String[] tokens = comandoRaw.split("\\|", -1);
+            if (tokens.length == 0) return;
             String accion = tokens[0];
 
             switch (accion) {
@@ -95,13 +116,13 @@ public class InstaServer {
                         MensajeInbox.Tipo tipo = tipoStr.equals("STICKER") ? MensajeInbox.Tipo.STICKER : MensajeInbox.Tipo.TEXTO;
                         InstaFileManager.enviarMensaje(emisor, receptor, contenido, tipo);
 
-                        // Si el receptor está conectado, notificarle en vivo por socket
+                        // Notificación en vivo si el receptor está conectado
                         PrintWriter outReceptor = clientesConectados.get(receptor.toLowerCase());
                         if (outReceptor != null) {
                             outReceptor.println("NUEVO_MENSAJE|" + emisor + "|" + receptor + "|" + tipoStr + "|" + contenido);
                         }
 
-                        // Eco al emisor para que actualice su pantalla inmediatamente
+                        // Eco al emisor para sincronizar su chat al instante
                         out.println("MENSAJE_ENVIADO|" + emisor + "|" + receptor + "|" + tipoStr + "|" + contenido);
                     }
                     break;

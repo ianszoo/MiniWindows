@@ -96,9 +96,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         }).start();
     }
 
-    // =========================================================================
-    // RESPUESTA INSTANTÁNEA POR SOCKET
-    // =========================================================================
     @Override
     public void onMensajeRecibido(String emisor, String receptor, String contenido, boolean esSticker) {
         SwingUtilities.invokeLater(() -> {
@@ -117,9 +114,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         });
     }
 
-    // =========================================================================
-    // VISTA PRINCIPAL DEL CELULAR (TOP BAR + SCREENS + BOTTOM NAV)
-    // =========================================================================
     private JPanel crearVistaTelefonoPrincipal() {
         JPanel phone = new JPanel(new BorderLayout());
         phone.setBackground(BG_PHONE);
@@ -290,7 +284,7 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
     }
 
     // =========================================================================
-    // 1. TIMELINE BASADO EN LISTAS ENLAZADAS
+    // 1. TIMELINE
     // =========================================================================
     private JPanel crearVistaTimeline() {
         JPanel feedRoot = new JPanel(new BorderLayout());
@@ -532,10 +526,18 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         footer.add(lblContenido);
 
         if (p.getSticker() != null && !p.getSticker().isEmpty() && !p.getSticker().equalsIgnoreCase("null")) {
-            JLabel lblSt = new JLabel(" Sticker: " + p.getSticker());
-            lblSt.setFont(new Font("Segoe UI", Font.BOLD, 11));
-            lblSt.setForeground(G_PINK);
-            footer.add(lblSt);
+            File fStk = new File(p.getSticker());
+            if (fStk.exists()) {
+                ImageIcon ic = new ImageIcon(new ImageIcon(fStk.getAbsolutePath()).getImage().getScaledInstance(45, 45, Image.SCALE_SMOOTH));
+                JLabel lblStkImg = new JLabel(ic);
+                lblStkImg.setBorder(new EmptyBorder(4, 4, 4, 4));
+                footer.add(lblStkImg);
+            } else {
+                JLabel lblSt = new JLabel(" Sticker: " + p.getSticker());
+                lblSt.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                lblSt.setForeground(G_PINK);
+                footer.add(lblSt);
+            }
         }
 
         card.add(footer, BorderLayout.SOUTH);
@@ -708,7 +710,7 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
     }
 
     // =========================================================================
-    // 3. CARGAR IMÁGENES / PUBLICAR
+    // 3. CARGAR IMÁGENES / PUBLICAR (CON SELECTOR DE STICKERS FUNCIONAL)
     // =========================================================================
     private JPanel crearVistaUpload() {
         JPanel root = new JPanel(new BorderLayout());
@@ -766,10 +768,12 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         btnStk.setAlignmentX(Component.CENTER_ALIGNMENT);
         btnStk.setMaximumSize(new Dimension(340, 34));
 
+        // Acción corregida para adjuntar sticker en posts
         btnStk.addActionListener(e -> {
             mostrarSelectorStickers(st -> {
                 stickerSel[0] = st;
-                btnStk.setText("Sticker: " + st);
+                File f = new File(st);
+                btnStk.setText("Sticker: " + (f.exists() ? f.getName() : st));
             });
         });
 
@@ -979,7 +983,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
         rightTextPanel.add(lblEstado);
         topInfoRow.add(rightTextPanel, BorderLayout.CENTER);
 
-        // Botón DM en la esquina superior derecha
         if (!esPropio) {
             JButton btnTopDM = new JButton("DM") {
                 @Override
@@ -1173,7 +1176,7 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
     }
 
     // =========================================================================
-    // 6. INBOX (BANDEJA VERTICAL MODERNA + SALA DE CHAT CON RETORNO)
+    // 6. INBOX (BANDEJA VERTICAL MODERNA + SALA DE CHAT)
     // =========================================================================
     private JPanel crearVistaInbox() {
         JPanel root = new JPanel(new BorderLayout());
@@ -1387,7 +1390,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
                 if (q.isEmpty() || targetUser.contains(q) || uObj.getNombreCompleto().toLowerCase().contains(q)) {
                     totalMostrados++;
 
-                    // 1. Declarar rowConv una sola vez y sin paintComponent con getModel()
                     JPanel rowConv = new JPanel(new BorderLayout(10, 0));
                     rowConv.setBackground(BG_SURFACE);
                     rowConv.setBorder(BorderFactory.createCompoundBorder(
@@ -1396,7 +1398,6 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
                     ));
                     rowConv.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-                    // 2. Efecto Hover limpio mediante MouseListener
                     rowConv.addMouseListener(new MouseAdapter() {
                         @Override
                         public void mouseEntered(MouseEvent e) {
@@ -1493,9 +1494,17 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
             bubble.setBackground(esMio ? IG_BLUE : BG_INPUT);
             bubble.setBorder(new EmptyBorder(6, 10, 6, 10));
 
-            if (m.getTipo() == MensajeInbox.Tipo.STICKER && new File(m.getTexto()).exists()) {
-                ImageIcon ic = new ImageIcon(new ImageIcon(m.getTexto()).getImage().getScaledInstance(75, 75, Image.SCALE_SMOOTH));
-                bubble.add(new JLabel(ic), BorderLayout.CENTER);
+            if (m.getTipo() == MensajeInbox.Tipo.STICKER) {
+                File f = new File(m.getTexto());
+                if (f.exists()) {
+                    ImageIcon ic = new ImageIcon(new ImageIcon(f.getAbsolutePath()).getImage().getScaledInstance(85, 85, Image.SCALE_SMOOTH));
+                    bubble.add(new JLabel(ic), BorderLayout.CENTER);
+                } else {
+                    JLabel lblStkText = new JLabel("[" + m.getTexto() + "]");
+                    lblStkText.setForeground(Color.WHITE);
+                    lblStkText.setFont(new Font("Segoe UI", Font.BOLD, 13));
+                    bubble.add(lblStkText, BorderLayout.CENTER);
+                }
             } else {
                 JLabel lblMsg = new JLabel("<html><body style='max-width:240px; color:#ffffff; font-size:11px; font-family:Segoe UI;'>"
                         + m.getTexto() + "</body></html>");
@@ -1518,89 +1527,105 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
     }
 
     // =========================================================================
-    // MODAL DE STICKERS (PACK GLOBAL Y PERSONAL CON IMPORTACIÓN .PNG / .JPG)
+    // MODAL DE STICKERS (MUESTRA TODOS LOS 66 STICKERS DE TU CARPETA)
     // =========================================================================
     private void mostrarSelectorStickers(java.util.function.Consumer<String> callback) {
-        JDialog dlg = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Stickers Pack", true);
-        dlg.setSize(360, 380);
+        Window parentWindow = SwingUtilities.getWindowAncestor(this);
+        JDialog dlg;
+        if (parentWindow instanceof Frame) {
+            dlg = new JDialog((Frame) parentWindow, "Stickers Pack", true);
+        } else if (parentWindow instanceof Dialog) {
+            dlg = new JDialog((Dialog) parentWindow, "Stickers Pack", true);
+        } else {
+            dlg = new JDialog((Frame) null, "Stickers Pack", true);
+        }
+
+        dlg.setSize(400, 480);
         dlg.setLocationRelativeTo(this);
         dlg.setLayout(new BorderLayout(0, 8));
         dlg.getContentPane().setBackground(BG_SURFACE);
 
         JPanel topPanel = new JPanel(new BorderLayout(8, 0));
         topPanel.setOpaque(false);
-        topPanel.setBorder(new EmptyBorder(10, 12, 4, 12));
+        topPanel.setBorder(new EmptyBorder(12, 16, 4, 16));
 
-        JLabel lblTit = new JLabel("Elige un Sticker:");
-        lblTit.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        JLabel lblTit = new JLabel("Galería de Stickers");
+        lblTit.setFont(new Font("Segoe UI", Font.BOLD, 15));
         lblTit.setForeground(TEXT_WHITE);
         topPanel.add(lblTit, BorderLayout.WEST);
 
-        JButton btnImportar = crearBotonGradiente("+ Importar (.png/.jpg)", 160, 30);
+        JButton btnImportar = crearBotonGradiente("+ Importar Sticker", 150, 32);
         topPanel.add(btnImportar, BorderLayout.EAST);
         dlg.add(topPanel, BorderLayout.NORTH);
 
-        JPanel grid = new JPanel(new GridLayout(0, 3, 8, 8));
+        JPanel grid = new JPanel(new GridLayout(0, 3, 10, 10));
         grid.setBackground(BG_SURFACE);
-        grid.setBorder(new EmptyBorder(8, 12, 12, 12));
+        grid.setBorder(new EmptyBorder(10, 16, 16, 16));
 
         Runnable cargarGrid = () -> {
             grid.removeAll();
             Lista<Stickers> stickers = InstaFileManager.cargarStickers(usuarioActual.getUsername());
-            Nodo<Stickers> n = stickers.getHead();
 
-            while (n != null) {
-                Stickers stkObj = n.getDato();
-                JButton btn = new JButton() {
+            for (int i = 0; i < stickers.getSize(); i++) {
+                Stickers stkObj = stickers.obtener(i);
+
+                JButton btnStkItem = new JButton() {
                     @Override
                     protected void paintComponent(Graphics g) {
                         Graphics2D g2 = (Graphics2D) g.create();
                         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                         g2.setColor(getModel().isRollover() ? BG_HOVER : BG_INPUT);
-                        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
                         g2.setColor(BORDER_LINE);
-                        g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+                        g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
                         g2.dispose();
                         super.paintComponent(g);
                     }
                 };
-                btn.setContentAreaFilled(false);
-                btn.setBorderPainted(false);
-                btn.setFocusPainted(false);
-                btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-                btn.setPreferredSize(new Dimension(85, 85));
+                btnStkItem.setContentAreaFilled(false);
+                btnStkItem.setBorderPainted(false);
+                btnStkItem.setFocusPainted(false);
+                btnStkItem.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                btnStkItem.setPreferredSize(new Dimension(95, 95));
 
+                // Visualización limpia de la imagen
                 if (stkObj.getRutaArchivo() != null && new File(stkObj.getRutaArchivo()).exists()) {
-                    ImageIcon ic = new ImageIcon(new ImageIcon(stkObj.getRutaArchivo()).getImage().getScaledInstance(55, 55, Image.SCALE_SMOOTH));
-                    btn.setIcon(ic);
+                    ImageIcon raw = new ImageIcon(stkObj.getRutaArchivo());
+                    Image img = raw.getImage().getScaledInstance(68, 68, Image.SCALE_SMOOTH);
+                    btnStkItem.setIcon(new ImageIcon(img));
+                    btnStkItem.setToolTipText(stkObj.getNombre());
                 } else {
-                    btn.setText(stkObj.getNombre());
-                    btn.setFont(new Font("Segoe UI", Font.BOLD, 11));
-                    btn.setForeground(TEXT_WHITE);
+                    btnStkItem.setText(stkObj.getNombre());
+                    btnStkItem.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                    btnStkItem.setForeground(TEXT_WHITE);
                 }
 
-                btn.addActionListener(e -> {
-                    callback.accept(stkObj.getRutaArchivo() != null ? stkObj.getRutaArchivo() : stkObj.getNombre());
+                btnStkItem.addActionListener(e -> {
+                    // Si tiene imagen enviamos la ruta, si es texto enviamos el nombre
+                    String val = (stkObj.getRutaArchivo() != null && new File(stkObj.getRutaArchivo()).exists())
+                            ? stkObj.getRutaArchivo()
+                            : stkObj.getNombre();
+                    callback.accept(val);
                     dlg.dispose();
                 });
-                grid.add(btn);
-                n = n.getSiguiente();
+                grid.add(btnStkItem);
             }
             grid.revalidate();
             grid.repaint();
         };
 
+        // Importación mediante JFileChooser
         btnImportar.addActionListener(e -> {
             JFileChooser fc = new JFileChooser();
-            fc.setDialogTitle("Seleccionar imagen de Sticker (.png o .jpg)");
+            fc.setDialogTitle("Importar Sticker a tu cuenta (.png o .jpg)");
             if (fc.showOpenDialog(dlg) == JFileChooser.APPROVE_OPTION) {
                 File archivoSel = fc.getSelectedFile();
                 boolean exito = InstaFileManager.agregarStickerPersonal(usuarioActual.getUsername(), archivoSel);
                 if (exito) {
-                    JOptionPane.showMessageDialog(dlg, "¡Sticker '" + archivoSel.getName() + "' agregado exitosamente!");
+                    JOptionPane.showMessageDialog(dlg, "¡Sticker agregado a tus stickers personales!");
                     cargarGrid.run();
                 } else {
-                    JOptionPane.showMessageDialog(dlg, "Error: El archivo debe tener formato .png o .jpg válido.", "Formato Inválido", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(dlg, "Error: El archivo debe ser una imagen con formato .png o .jpg.", "Formato Inválido", JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
@@ -1609,12 +1634,11 @@ public class InstaPanel extends JPanel implements InstaClientSocket.MensajeListe
 
         JScrollPane sc = new JScrollPane(grid);
         sc.setBorder(null);
-        sc.getVerticalScrollBar().setUnitIncrement(14);
+        sc.getVerticalScrollBar().setUnitIncrement(16);
         dlg.add(sc, BorderLayout.CENTER);
 
         dlg.setVisible(true);
     }
-
     // =========================================================================
     // 7. EDITAR PERFIL
     // =========================================================================
