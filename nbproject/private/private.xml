@@ -1,10 +1,131 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project-private xmlns="http://www.netbeans.org/ns/project-private/1">
-    <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
+    <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="19">
+        <file>
+            <url>src/Insta/Publicacion.java</url>
+            <bookmark id="17">
+                <name/>
+                <line>0</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/Insta/InstaClientSocket.java</url>
+            <bookmark id="12">
+                <name/>
+                <line>32</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/Windows/Usuario.java</url>
+            <bookmark id="5">
+                <name/>
+                <line>8</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/Insta/InstaPanel.java</url>
+            <bookmark id="18">
+                <name/>
+                <line>0</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/Windows/MiniWindowsDesktop.java</url>
+            <bookmark id="9">
+                <name/>
+                <line>676</line>
+                <key/>
+            </bookmark>
+            <bookmark id="10">
+                <name/>
+                <line>1134</line>
+                <key/>
+            </bookmark>
+            <bookmark id="11">
+                <name/>
+                <line>2290</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/Insta/InstaServer.java</url>
+            <bookmark id="7">
+                <name/>
+                <line>17</line>
+                <key/>
+            </bookmark>
+            <bookmark id="19">
+                <name/>
+                <line>23</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/Windows/Main.java</url>
+            <bookmark id="8">
+                <name/>
+                <line>12</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/Windows/SistemadeArchivos.java</url>
+            <bookmark id="1">
+                <name/>
+                <line>47</line>
+                <key/>
+            </bookmark>
+            <bookmark id="3">
+                <name/>
+                <line>56</line>
+                <key/>
+            </bookmark>
+            <bookmark id="4">
+                <name/>
+                <line>87</line>
+                <key/>
+            </bookmark>
+        </file>
+        <file>
+            <url>src/Insta/InstaFileManager.java</url>
+            <bookmark id="13">
+                <name/>
+                <line>0</line>
+                <key/>
+            </bookmark>
+            <bookmark id="6">
+                <name/>
+                <line>0</line>
+                <key/>
+            </bookmark>
+            <bookmark id="14">
+                <name/>
+                <line>0</line>
+                <key/>
+            </bookmark>
+            <bookmark id="15">
+                <name/>
+                <line>0</line>
+                <key/>
+            </bookmark>
+        </file>
+    </editor-bookmarks>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
-            <file>file:/C:/Users/Ian%20Suazo%20Palao/Documents/NetBeansProjects/MiniWindows/src/Windows/MiniWindowsDesktop.java</file>
-            <file>file:/C:/Users/Ian%20Suazo%20Palao/Documents/NetBeansProjects/MiniWindows/src/Windows/Main.java</file>
+            <file>file:/C:/Users/David%20Suazo%20Palao/Desktop/Programacion%202/MiniWindows/src/Windows/MiniWindowsDesktop.java</file>
+            <file>file:/C:/Users/David%20Suazo%20Palao/Desktop/Programacion%202/MiniWindows/src/Insta/MensajeInbox.java</file>
+            <file>file:/C:/Users/David%20Suazo%20Palao/Desktop/Programacion%202/MiniWindows/src/Insta/InstaServer.java</file>
+            <file>file:/C:/Users/David%20Suazo%20Palao/Desktop/Programacion%202/MiniWindows/src/Windows/SistemadeArchivos.java</file>
+            <file>file:/C:/Users/David%20Suazo%20Palao/Desktop/Programacion%202/MiniWindows/src/Insta/InstaClientSocket.java</file>
+            <file>file:/C:/Users/David%20Suazo%20Palao/Desktop/Programacion%202/MiniWindows/src/Insta/InstaPanel.java</file>
+            <file>file:/C:/Users/David%20Suazo%20Palao/Desktop/Programacion%202/MiniWindows/src/Insta/Publicacion.java</file>
+            <file>file:/C:/Users/David%20Suazo%20Palao/Desktop/Programacion%202/MiniWindows/src/Windows/Main.java</file>
+            <file>file:/C:/Users/David%20Suazo%20Palao/Desktop/Programacion%202/MiniWindows/src/Insta/InstaFileManager.java</file>
+            <file>file:/C:/Users/David%20Suazo%20Palao/Desktop/Programacion%202/MiniWindows/src/Windows/Usuario.java</file>
         </group>
     </open-files>
 </project-private>
