@@ -25,13 +25,12 @@ public class InstaFileManager {
 
         File userIns = new File(ARCHIVO_USERS_INS);
         if (!userIns.exists()) {
+            // Únicamente se crean las 3 cuentas temáticas de ejemplo para que las búsquedas tengan resultados
             Lista<Usuario> iniciales = new Lista<>();
-            Usuario uAdmin = new Usuario("admin", "Admin2026!", true, "Administrador Sistema", 'M', 25, null);
             Usuario uNoticias = new Usuario("noticias", "Noticias2026!", false, "Canal Noticias Honduras", 'M', 30, null);
-            Usuario uDeportes = new Usuario("deportes", "Deportes2026!", false, "Deportes Extremos", 'M', 22, null);
+            Usuario uDeportes = new Usuario("deportes", "Deportes2026!", false, "Deportes Extremos HN", 'M', 22, null);
             Usuario uModa = new Usuario("entretenimiento", "Moda2026!", false, "Mundo y Tendencias", 'F', 24, null);
 
-            iniciales.agregar(uAdmin);
             iniciales.agregar(uNoticias);
             iniciales.agregar(uDeportes);
             iniciales.agregar(uModa);
@@ -43,9 +42,9 @@ public class InstaFileManager {
                 n = n.getSiguiente();
             }
 
-            publicarDemo("noticias", "Lanzamiento oficial de la plataforma #Sistemas #Tecnologia @admin", null, "Noticias", false);
-            publicarDemo("deportes", "Gran final de fútbol hoy a las 8PM @todos #Deporte #Campeonato", null, "Eventos", false);
-            publicarDemo("entretenimiento", "Tendencias de moda en tecnología 2026 #Moda @admin", null, "General", false);
+            publicarDemo("noticias", "Lanzamiento oficial de la plataforma #Sistemas #Tecnologia", null, "Noticias", false);
+            publicarDemo("deportes", "Gran final de fútbol hoy a las 8PM #Deporte #Campeonato", null, "Eventos", false);
+            publicarDemo("entretenimiento", "Tendencias de moda en tecnología 2026 #Moda", null, "General", false);
         }
     }
 
@@ -67,17 +66,18 @@ public class InstaFileManager {
             new File(uDir, "folders_personales/Memes").mkdirs();
             new File(uDir, "stickers_personales").mkdirs();
 
+            // Todo inicia completamente vacío para cuentas nuevas
             guardarListaGenerica(new File(uDir, "following.ins"), new Lista<String>());
             guardarListaGenerica(new File(uDir, "followers.ins"), new Lista<String>());
             guardarListaGenerica(new File(uDir, "insta.ins"), new Lista<Publicacion>());
             guardarListaGenerica(new File(uDir, "inbox.ins"), new Lista<MensajeInbox>());
             
             Lista<String> stks = new Lista<>();
-            stks.agregar("😊 Feliz");
-            stks.agregar("😢 Triste");
-            stks.agregar("❤️ Corazón");
-            stks.agregar("😂 Risa");
-            stks.agregar("👏 Aplauso");
+            stks.agregar("Feliz");
+            stks.agregar("Triste");
+            stks.agregar("Corazon");
+            stks.agregar("Risa");
+            stks.agregar("Aplauso");
             guardarListaGenerica(new File(uDir, "stickers.ins"), stks);
         }
     }
@@ -140,7 +140,7 @@ public class InstaFileManager {
             Usuario u = n.getDato();
             if (u.getUsername().equalsIgnoreCase(username) && u.getPass().equals(password)) {
                 if (!u.isActivo()) {
-                    throw new CuentaDesactivadaException("Tu cuenta se encuentra desactivada. Reactívala para continuar.");
+                    throw new CuentaDesactivadaException("Tu cuenta se encuentra desactivada.");
                 }
                 return u;
             }
@@ -171,7 +171,7 @@ public class InstaFileManager {
         guardarListaGenerica(new File(RUTA_INSTA + "/" + username + "/insta.ins"), posts);
     }
 
-    // --- SEGUIMIENTO (FOLLOW / UNFOLLOW) ---
+    // --- SEGUIMIENTO ---
     public static Lista<String> cargarSeguidos(String username) {
         return cargarListaGenerica(new File(RUTA_INSTA + "/" + username + "/following.ins"));
     }
@@ -205,7 +205,7 @@ public class InstaFileManager {
         }
     }
 
-    // --- INBOX / MENSAJES ---
+    // --- INBOX ---
     public static synchronized void enviarMensaje(String emisor, String receptor, String texto, MensajeInbox.Tipo tipo) {
         MensajeInbox msg = new MensajeInbox(emisor, receptor, texto, tipo);
         File fEmisor = new File(RUTA_INSTA + "/" + emisor + "/inbox.ins");
@@ -254,17 +254,16 @@ public class InstaFileManager {
         guardarListaGenerica(f, filtrados);
     }
 
-    // --- CARGA DE STICKERS ---
     public static synchronized Lista<String> cargarStickers(String username) {
         File fStk = new File(RUTA_INSTA + "/" + username + "/stickers.ins");
         Lista<String> stickers = cargarListaGenerica(fStk);
 
         if (stickers.estaVacia()) {
-            stickers.agregar("😊 Feliz");
-            stickers.agregar("😢 Triste");
-            stickers.agregar("❤️ Corazón");
-            stickers.agregar("😂 Risa");
-            stickers.agregar("👏 Aplauso");
+            stickers.agregar("Feliz");
+            stickers.agregar("Triste");
+            stickers.agregar("Corazon");
+            stickers.agregar("Risa");
+            stickers.agregar("Aplauso");
             guardarListaGenerica(fStk, stickers);
         }
 
