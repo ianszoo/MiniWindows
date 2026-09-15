@@ -43,10 +43,65 @@ public class InstaFileManager {
                 n = n.getSiguiente();
             }
 
-            publicarDemo("noticias", "Lanzamiento oficial de la plataforma #Sistemas #Tecnologia", null, "Noticias", false);
-            publicarDemo("deportes", "Gran final de fútbol hoy a las 8PM #Deporte #Campeonato", null, "Eventos", false);
-            publicarDemo("entretenimiento", "Tendencias de moda en tecnología 2026 #Moda", null, "General", false);
+            // Crear imágenes de muestra físicas si no existen
+            String imgNoticia = asegurarImagenDemo("noticias", "noticia_demo.jpg", new Color(30, 58, 138), "NOTICIAS HOY");
+            String imgDeporte = asegurarImagenDemo("deportes", "deporte_demo.jpg", new Color(4, 120, 87), "CAMPEONATO 2026");
+            String imgModa = asegurarImagenDemo("entretenimiento", "moda_demo.jpg", new Color(190, 24, 93), "FASHION & TECH");
+
+            publicarDemo("noticias", "Lanzamiento oficial de la plataforma #Sistemas #Tecnologia", imgNoticia, null, "Noticias", false);
+            publicarDemo("deportes", "Gran final de fútbol hoy a las 8PM #Deporte #Campeonato", imgDeporte, null, "Eventos", false);
+            publicarDemo("entretenimiento", "Tendencias de moda en tecnología 2026 #Moda", imgModa, null, "General", false);
         }
+    }
+
+    // Genera una imagen demo visual limpia si el usuario no tiene ninguna cargada aún
+    private static String asegurarImagenDemo(String username, String nombreArchivo, Color colorFondo, String texto) {
+        File dirImg = new File(RUTA_INSTA + "/" + username + "/imagenes");
+        if (!dirImg.exists()) dirImg.mkdirs();
+
+        File destino = new File(dirImg, nombreArchivo);
+        if (!destino.exists()) {
+            try {
+                BufferedImage img = new BufferedImage(600, 400, BufferedImage.TYPE_INT_RGB);
+                Graphics2D g2 = img.createGraphics();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(colorFondo);
+                g2.fillRect(0, 0, 600, 400);
+
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 32));
+                FontMetrics fm = g2.getFontMetrics();
+                int x = (600 - fm.stringWidth(texto)) / 2;
+                int y = (400 + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(texto, x, y);
+                g2.dispose();
+
+                ImageIO.write(img, "jpg", destino);
+            } catch (Exception ignored) {}
+        }
+        return destino.getAbsolutePath();
+    }
+
+    // Resuelve la imagen buscando de forma local si la ruta absoluta pertenecía a otra máquina
+    public static File resolverImagenPost(String autor, String rutaGuardada) {
+        if (rutaGuardada == null || rutaGuardada.trim().isEmpty()) return null;
+
+        // 1. Probar ruta directa
+        File fDirecto = new File(rutaGuardada);
+        if (fDirecto.exists()) return fDirecto;
+
+        // 2. Probar en la carpeta de imágenes del autor
+        File fEnUsuario = new File(RUTA_INSTA + "/" + autor + "/imagenes/" + fDirecto.getName());
+        if (fEnUsuario.exists()) return fEnUsuario;
+
+        // 3. Probar en la carpeta imágenes del proyecto
+        String[] carpetasProyecto = {"Imagenes/", "src/Imagenes/", "imagenes/", "src/imagenes/"};
+        for (String c : carpetasProyecto) {
+            File fProy = new File(c + fDirecto.getName());
+            if (fProy.exists()) return fProy;
+        }
+
+        return null;
     }
 
     private static void asegurarStickersPorDefecto() {
@@ -85,8 +140,8 @@ public class InstaFileManager {
         }
     }
 
-    private static void publicarDemo(String autor, String txt, String sticker, String carpeta, boolean esHistoria) {
-        Publicacion p = new Publicacion(autor, txt, null, carpeta, sticker, esHistoria, Publicacion.AspectRatio.CUADRADA);
+    private static void publicarDemo(String autor, String txt, String rutaImg, String sticker, String carpeta, boolean esHistoria) {
+        Publicacion p = new Publicacion(autor, txt, rutaImg, carpeta, sticker, esHistoria, Publicacion.AspectRatio.CUADRADA);
         Lista<Publicacion> posts = cargarPublicaciones(autor);
         posts.agregar(p);
         guardarPublicaciones(autor, posts);
@@ -250,40 +305,49 @@ public class InstaFileManager {
         guardarListaGenerica(fReceptor, inboxReceptor);
     }
 
-    public static synchronized void marcarConversacionComoLeida(String receptor, String emisor) {
-        File fReceptor = new File(RUTA_INSTA + "/" + receptor + "/inbox.ins");
-        Lista<MensajeInbox> inboxReceptor = cargarListaGenerica(fReceptor);
-        Nodo<MensajeInbox> nr = inboxReceptor.getHead();
-        boolean modificadoReceptor = false;
-        while (nr != null) {
-            MensajeInbox m = nr.getDato();
-            if (m.getEmisor().equalsIgnoreCase(emisor) && m.getReceptor().equalsIgnoreCase(receptor) && !m.isLeido()) {
-                m.setLeido(true);
-                modificadoReceptor = true;
-            }
-            nr = nr.getSiguiente();
-        }
-        if (modificadoReceptor) {
-            guardarListaGenerica(fReceptor, inboxReceptor);
-        }
+    public static synchronized Lista<MensajeInbox> obtenerConversacion(String u1, String u2) {
+        File f = new File(RUTA_INSTA + "/" + u1 + "/inbox.ins");
+        Lista<MensajeInbox> todos = cargarListaGenerica(f);
+        Lista<MensajeInbox> chat = new Lista<>();
 
-        File fEmisor = new File(RUTA_INSTA + "/" + emisor + "/inbox.ins");
-        Lista<MensajeInbox> inboxEmisor = cargarListaGenerica(fEmisor);
-        Nodo<MensajeInbox> ne = inboxEmisor.getHead();
-        boolean modificadoEmisor = false;
-        while (ne != null) {
-            MensajeInbox m = ne.getDato();
-            if (m.getEmisor().equalsIgnoreCase(emisor) && m.getReceptor().equalsIgnoreCase(receptor) && !m.isLeido()) {
-                m.setLeido(true);
-                modificadoEmisor = true;
+        Nodo<MensajeInbox> n = todos.getHead();
+        while (n != null) {
+            MensajeInbox m = n.getDato();
+            if ((m.getEmisor().equalsIgnoreCase(u1) && m.getReceptor().equalsIgnoreCase(u2)) ||
+                (m.getEmisor().equalsIgnoreCase(u2) && m.getReceptor().equalsIgnoreCase(u1))) {
+                chat.agregar(m);
+                if (m.getReceptor().equalsIgnoreCase(u1)) m.setLeido(true);
             }
-            ne = ne.getSiguiente();
+            n = n.getSiguiente();
         }
-        if (modificadoEmisor) {
-            guardarListaGenerica(fEmisor, inboxEmisor);
-        }
+        guardarListaGenerica(f, todos);
+        return chat;
     }
 
+    
+    public static synchronized void marcarConversacionComoLeida(String usuarioActual, String usuarioEmisor) {
+        File fInbox = new File(RUTA_INSTA + "/" + usuarioActual + "/inbox.ins");
+        if (!fInbox.exists()) return;
+
+        Lista<MensajeInbox> lista = cargarListaGenerica(fInbox);
+        boolean huboCambios = false;
+
+        Nodo<MensajeInbox> n = lista.getHead();
+        while (n != null) {
+            MensajeInbox m = n.getDato();
+            if (m.getEmisor().equalsIgnoreCase(usuarioEmisor) && 
+                m.getReceptor().equalsIgnoreCase(usuarioActual) && 
+                !m.isLeido()) {
+                m.setLeido(true);
+                huboCambios = true;
+            }
+            n = n.getSiguiente();
+        }
+        if (huboCambios) {
+            guardarListaGenerica(fInbox, lista);
+        }
+    }
+    
     public static synchronized int contarMensajesNoLeidos(String usuarioActual, String remitente) {
         File f = new File(RUTA_INSTA + "/" + usuarioActual + "/inbox.ins");
         Lista<MensajeInbox> todos = cargarListaGenerica(f);
@@ -298,25 +362,7 @@ public class InstaFileManager {
         }
         return noLeidos;
     }
-
-    public static synchronized Lista<MensajeInbox> obtenerConversacion(String u1, String u2) {
-        marcarConversacionComoLeida(u1, u2);
-        File f = new File(RUTA_INSTA + "/" + u1 + "/inbox.ins");
-        Lista<MensajeInbox> todos = cargarListaGenerica(f);
-        Lista<MensajeInbox> chat = new Lista<>();
-
-        Nodo<MensajeInbox> n = todos.getHead();
-        while (n != null) {
-            MensajeInbox m = n.getDato();
-            if ((m.getEmisor().equalsIgnoreCase(u1) && m.getReceptor().equalsIgnoreCase(u2)) ||
-                (m.getEmisor().equalsIgnoreCase(u2) && m.getReceptor().equalsIgnoreCase(u1))) {
-                chat.agregar(m);
-            }
-            n = n.getSiguiente();
-        }
-        return chat;
-    }
-
+    
     public static synchronized void eliminarConversacionCompleta(String u1, String u2) {
         File f = new File(RUTA_INSTA + "/" + u1 + "/inbox.ins");
         Lista<MensajeInbox> todos = cargarListaGenerica(f);

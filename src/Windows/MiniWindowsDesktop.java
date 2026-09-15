@@ -679,7 +679,6 @@ public class MiniWindowsDesktop extends JFrame {
                 int count = 0;
                 while (cur != null) {
                     Usuario u = cur.getDato();
-                    // El admin siempre se muestra Activo
                     boolean activoVal = u.getUsername().equalsIgnoreCase("admin") ? true : u.isActivo();
                     modelUsuarios.addRow(new Object[]{
                         u.getUsername(),
